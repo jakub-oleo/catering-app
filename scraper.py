@@ -7,32 +7,30 @@ import time
 def pobierz_widoczne_dania(page, kategoria):
     dania = []
     
-    # MĄDRE CZEKANIE: Skrypt czeka aż pojawi się przynajmniej jeden kafelek. 
-    # Jeśli serwer jest szybki - ruszy od razu. Jeśli wolny - poczeka do 10 sekund.
+    # 1. Wracamy do sprawdzania elementu, który na pewno istnieje na tej stronie!
     try:
-        page.wait_for_selector('.guest-menu-product-card', state='visible', timeout=10000)
-        # Dajemy dodatkową sekundę, by framework Vue.js zdążył "doczytać" teksty wewnątrz kafelków
-        page.wait_for_timeout(1000) 
+        page.wait_for_selector('.guest-menu-product-card__name', state='visible', timeout=2500)
+        page.wait_for_timeout(500) 
     except Exception:
-        # Jeśli minie 10 sekund i kafelków nie ma, uznajemy że kategoria (np. "Sushi") jest dziś pusta
         return []
         
-    karty = page.locator('.guest-menu-product-card')
-    ilosc_kart = karty.count()
+    karty_nazwy = page.locator('.guest-menu-product-card__name')
+    ilosc_kart = karty_nazwy.count()
     
     for i in range(ilosc_kart):
-        karta = karty.nth(i)
+        nazwa_el = karty_nazwy.nth(i)
         
-        # Przewijamy ekran do karty
-        karta.scroll_into_view_if_needed()
-        page.wait_for_timeout(300) 
+        nazwa_el.scroll_into_view_if_needed()
+        page.wait_for_timeout(200) 
         
         try:
-            nazwa = karta.locator('.guest-menu-product-card__name').inner_text().strip()
+            nazwa = nazwa_el.inner_text().strip()
         except:
             continue
             
-        # 1. Pobieranie Ceny
+        # Wracamy do bezpiecznego odnajdywania rodzica (poprzez XPath)
+        karta = nazwa_el.locator("xpath=ancestor::*[contains(@class, 'guest-menu-product-card')][1]")
+            
         cena = ""
         try:
             linie_tekstu = karta.inner_text().split('\n')
@@ -43,7 +41,6 @@ def pobierz_widoczne_dania(page, kategoria):
         except:
             pass
             
-        # 2. Pobieranie Zdjęcia
         zdjecie = ""
         try:
             img_el = karta.locator('img').first
@@ -55,21 +52,20 @@ def pobierz_widoczne_dania(page, kategoria):
         except:
             pass
             
-        # 3. Interakcja z okienkiem (Opis)
         opis = "Brak opisu"
         try:
-            karta.click(force=True)
-            page.wait_for_timeout(1000) 
+            # Klikamy bezpośrednio w widoczną nazwę dania
+            nazwa_el.click(force=True)
             
             opis_loc = page.locator('.mb-4.text-medium-emphasis').last
-            if opis_loc.is_visible(timeout=2000):
-                opis = opis_loc.inner_text().strip()
+            opis_loc.wait_for(state='visible', timeout=2000)
+            opis = opis_loc.inner_text().strip()
             
             page.keyboard.press("Escape")
-            page.wait_for_timeout(500)
+            page.wait_for_timeout(300)
         except:
             page.keyboard.press("Escape")
-            page.wait_for_timeout(500)
+            page.wait_for_timeout(300)
             
         dania.append({
             "Nazwa_Dania": nazwa,
