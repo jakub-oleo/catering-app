@@ -7,10 +7,10 @@ import time
 def pobierz_widoczne_dania(page, kategoria):
     dania = []
     
-    # 1. Wracamy do sprawdzania elementu, który na pewno istnieje na tej stronie!
+    # Czekamy aż kafelki się załadują
     try:
-        page.wait_for_selector('.guest-menu-product-card__name', state='visible', timeout=2500)
-        page.wait_for_timeout(500) 
+        page.wait_for_selector('.guest-menu-product-card__name', state='visible', timeout=4000)
+        page.wait_for_timeout(1000)
     except Exception:
         return []
         
@@ -20,52 +20,56 @@ def pobierz_widoczne_dania(page, kategoria):
     for i in range(ilosc_kart):
         nazwa_el = karty_nazwy.nth(i)
         
+        # Przewijamy do elementu i upewniamy się, że jest widoczny
         nazwa_el.scroll_into_view_if_needed()
-        page.wait_for_timeout(200) 
+        page.wait_for_timeout(300)
         
-        try:
-            nazwa = nazwa_el.inner_text().strip()
-        except:
+        if not nazwa_el.is_visible():
             continue
             
-        # Wracamy do bezpiecznego odnajdywania rodzica (poprzez XPath)
-        karta = nazwa_el.locator("xpath=ancestor::*[contains(@class, 'guest-menu-product-card')][1]")
-            
+        nazwa = nazwa_el.inner_text().strip()
+        karta = nazwa_el.locator("xpath=ancestor::div[contains(@class, 'v-card')][1]")
+        
+        # 1. POBIERANIE CENY (na podstawie Twojego HTML)
         cena = ""
         try:
-            linie_tekstu = karta.inner_text().split('\n')
-            for linia in linie_tekstu:
-                if 'zł' in linia.lower():
-                    cena = linia.strip()
-                    break
+            cena_el = karta.locator('.guest-menu-product-card__actions p').first
+            cena = cena_el.inner_text().strip()
         except:
             pass
             
+        # 2. POBIERANIE ZDJĘCIA (na podstawie Twojego HTML)
         zdjecie = ""
         try:
-            img_el = karta.locator('img').first
+            img_el = karta.locator('img.v-img__img').first
             src = img_el.get_attribute('src')
-            if not src or 'data:image' in src:
-                src = img_el.get_attribute('data-src')
             if src:
                 zdjecie = src
         except:
             pass
             
+        # 3. INTERAKCJA I POBIERANIE OPISU (na podstawie Twojego HTML)
         opis = "Brak opisu"
         try:
-            # Klikamy bezpośrednio w widoczną nazwę dania
-            nazwa_el.click(force=True)
+            # Klikamy w sam środek kafelka (nie zawsze kliknięcie w nazwę działa poprawnie, lepiej w całą kartę)
+            karta.click(force=True)
             
-            opis_loc = page.locator('.mb-4.text-medium-emphasis').last
-            opis_loc.wait_for(state='visible', timeout=2000)
-            opis = opis_loc.inner_text().strip()
+            # Czekamy na okienko dialogowe (wskazana przez Ciebie klasa)
+            modal = page.locator('.guest-product-dialog__card').last
+            modal.wait_for(state='visible', timeout=3000)
             
+            # Pobieramy opis z aktywnego okienka
+            opis_el = modal.locator('p.text-medium-emphasis').first
+            if opis_el.is_visible():
+                opis = opis_el.inner_text().strip()
+                
+            # Zamykamy
             page.keyboard.press("Escape")
-            page.wait_for_timeout(300)
+            page.wait_for_timeout(500)
         except:
+            # Awaryjne zamknięcie
             page.keyboard.press("Escape")
-            page.wait_for_timeout(300)
+            page.wait_for_timeout(500)
             
         dania.append({
             "Nazwa_Dania": nazwa,
