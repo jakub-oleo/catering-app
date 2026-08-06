@@ -1,0 +1,32 @@
+name: Codzienny Scraper Menu
+
+on:
+  schedule:
+    - cron: '0 18 * * *' 
+  workflow_dispatch:
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pobranie kodu repozytorium
+        uses: actions/checkout@v3
+
+      - name: Konfiguracja Pythona
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalacja wymaganych bibliotek
+        run: |
+          pip install playwright gspread pandas
+          playwright install chromium
+
+      - name: Utworzenie pliku z kluczem Google
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+        run: |
+          echo "$GCP_CREDENTIALS" > google_credentials.json
+
+      - name: Uruchomienie skryptu Scrapera
+        run: python scraper.py
