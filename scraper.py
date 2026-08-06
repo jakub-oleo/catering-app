@@ -6,41 +6,66 @@ import time
 
 def pobierz_widoczne_dania(page, kategoria):
     dania = []
-    # Zamiast samych nazw, pobieramy elementy, aby potem sprawdzić ich "rodzica" (całą kartę)
-    karty_nazwy = page.locator('.guest-menu-product-card__name').all()
+    # Pobieramy ilość kart, aby iterować po nich bezpiecznie
+    karty_nazwy = page.locator('.guest-menu-product-card__name')
+    ilosc_kart = karty_nazwy.count()
     
-    for nazwa_el in karty_nazwy:
-        if nazwa_el.is_visible():
-            nazwa = nazwa_el.inner_text().strip()
+    for i in range(ilosc_kart):
+        nazwa_el = karty_nazwy.nth(i)
+        
+        if not nazwa_el.is_visible():
+            continue
             
-            # Wyszukujemy "rodzica" (cały kafelek dania), żeby wyciągnąć resztę danych
-            karta = nazwa_el.locator("xpath=ancestor::*[contains(@class, 'guest-menu-product-card')][1]")
+        nazwa = nazwa_el.inner_text().strip()
+        karta = nazwa_el.locator("xpath=ancestor::*[contains(@class, 'guest-menu-product-card')][1]")
+        
+        # 1. Pobieranie Ceny
+        try:
+            cena_el = karta.locator('.guest-menu-product-card__actions p').first
+            cena = cena_el.inner_text().strip()
+        except:
+            cena = ""
             
-            # Próba pobrania składu (opisu)
-            try:
-                opis = karta.locator('.guest-menu-product-card__description').inner_text().strip()
-            except:
-                opis = "Brak opisu"
-                
-            # Próba pobrania ceny
-            try:
-                cena = karta.locator('.guest-menu-product-card__price').inner_text().strip()
-            except:
-                cena = ""
-                
-            # Próba pobrania zdjęcia (bezpośredni link src)
-            try:
-                zdjecie = karta.locator('img').first.get_attribute('src')
-            except:
-                zdjecie = ""
-                
-            dania.append({
-                "Nazwa_Dania": nazwa,
-                "Opis": opis,
-                "Kategoria": kategoria,
-                "Cena": cena,
-                "Zdjecie": zdjecie
-            })
+        # 2. Pobieranie Zdjęcia (ZAKTUALIZOWANE W OPARCIU O KLASĘ v-img__img)
+        zdjecie = ""
+        try:
+            # Szukamy dokładnie elementu <img> posiadającego klasę v-img__img
+            img_el = karta.locator('img.v-img__img').first
+            src = img_el.get_attribute('src')
+            if src:
+                zdjecie = src # Bezpośredni link z Firebase
+        except:
+            pass
+            
+        # 3. Interakcja: Pobieranie Opisu (Składu) poprzez KLIKNIĘCIE
+        opis = "Brak opisu"
+        try:
+            # Klikamy w kafelek, aby otworzyć okienko ze składem
+            nazwa_el.click()
+            
+            # Czekamy na pojawienie się tekstu z klasą składu
+            opis_loc = page.locator('.mb-4.text-medium-emphasis')
+            opis_loc.wait_for(state="visible", timeout=3000)
+            opis = opis_loc.inner_text().strip()
+            
+            # Zamykamy okienko wciskając wirtualny klawisz Escape
+            page.keyboard.press("Escape")
+            # Czekamy ułamek sekundy na zamknięcie okienka, by nie kliknąć w tło
+            page.wait_for_timeout(300)
+            
+        except Exception:
+            # W razie jakiegokolwiek błędu zamykamy okienko awaryjnie
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(300)
+            
+        dania.append({
+            "Nazwa_Dania": nazwa,
+            "Opis": opis,
+            "Kategoria": kategoria,
+            "Cena": cena,
+            "Zdjecie": zdjecie
+        })
+        
     return dania
 
 def pobierz_pelne_menu(url):
