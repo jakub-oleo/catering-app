@@ -6,15 +6,40 @@ import time
 
 def pobierz_widoczne_dania(page, kategoria):
     dania = []
-    karty = page.locator('.guest-menu-product-card__name').all()
+    # Zamiast samych nazw, pobieramy elementy, aby potem sprawdzić ich "rodzica" (całą kartę)
+    karty_nazwy = page.locator('.guest-menu-product-card__name').all()
     
-    for karta in karty:
-        if karta.is_visible():
-            nazwa = karta.inner_text().strip()
+    for nazwa_el in karty_nazwy:
+        if nazwa_el.is_visible():
+            nazwa = nazwa_el.inner_text().strip()
+            
+            # Wyszukujemy "rodzica" (cały kafelek dania), żeby wyciągnąć resztę danych
+            karta = nazwa_el.locator("xpath=ancestor::*[contains(@class, 'guest-menu-product-card')][1]")
+            
+            # Próba pobrania składu (opisu)
+            try:
+                opis = karta.locator('.guest-menu-product-card__description').inner_text().strip()
+            except:
+                opis = "Brak opisu"
+                
+            # Próba pobrania ceny
+            try:
+                cena = karta.locator('.guest-menu-product-card__price').inner_text().strip()
+            except:
+                cena = ""
+                
+            # Próba pobrania zdjęcia (bezpośredni link src)
+            try:
+                zdjecie = karta.locator('img').first.get_attribute('src')
+            except:
+                zdjecie = ""
+                
             dania.append({
                 "Nazwa_Dania": nazwa,
-                "Opis": "Brak opisu",
-                "Kategoria": kategoria
+                "Opis": opis,
+                "Kategoria": kategoria,
+                "Cena": cena,
+                "Zdjecie": zdjecie
             })
     return dania
 
@@ -115,7 +140,7 @@ def aktualizuj_baze_danych(menu_tygodniowe):
             if nazwa not in znane_nazwy:
                 nowe_id = f"D-{str(uuid.uuid4())[:6]}"
                 formula = f'=JEŻELI.BŁĄD(ZAOKR(ŚREDNIA.JEŻELI(Opinie!C:C; "{nowe_id}"; Opinie!I:I); 1); 		0)'
-                nowe_do_katalogu.append([nowe_id, nazwa, danie["Kategoria"], danie["Opis"], formula])
+                nowe_do_katalogu.append([nowe_id, nazwa, danie["Kategoria"], danie["Opis"], formula, danie["Cena"], danie["Zdjecie"]])
                 znane_nazwy.append(nazwa)
                 id_map[nazwa] = nowe_id
                 dodano_nowe += 1
