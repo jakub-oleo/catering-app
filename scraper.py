@@ -6,13 +6,24 @@ import time
 
 def pobierz_widoczne_dania(page, kategoria):
     dania = []
-    page.wait_for_timeout(2000) 
     
+    # MĄDRE CZEKANIE: Skrypt czeka aż pojawi się przynajmniej jeden kafelek. 
+    # Jeśli serwer jest szybki - ruszy od razu. Jeśli wolny - poczeka do 10 sekund.
+    try:
+        page.wait_for_selector('.guest-menu-product-card', state='visible', timeout=10000)
+        # Dajemy dodatkową sekundę, by framework Vue.js zdążył "doczytać" teksty wewnątrz kafelków
+        page.wait_for_timeout(1000) 
+    except Exception:
+        # Jeśli minie 10 sekund i kafelków nie ma, uznajemy że kategoria (np. "Sushi") jest dziś pusta
+        return []
+        
     karty = page.locator('.guest-menu-product-card')
     ilosc_kart = karty.count()
     
     for i in range(ilosc_kart):
         karta = karty.nth(i)
+        
+        # Przewijamy ekran do karty
         karta.scroll_into_view_if_needed()
         page.wait_for_timeout(300) 
         
@@ -21,7 +32,7 @@ def pobierz_widoczne_dania(page, kategoria):
         except:
             continue
             
-        # 1. Niezawodne szukanie ceny (szukamy 'zł' w dowolnej linijce tekstu karty)
+        # 1. Pobieranie Ceny
         cena = ""
         try:
             linie_tekstu = karta.inner_text().split('\n')
@@ -32,7 +43,7 @@ def pobierz_widoczne_dania(page, kategoria):
         except:
             pass
             
-        # 2. Pobieranie zdjęcia
+        # 2. Pobieranie Zdjęcia
         zdjecie = ""
         try:
             img_el = karta.locator('img').first
@@ -44,13 +55,12 @@ def pobierz_widoczne_dania(page, kategoria):
         except:
             pass
             
-        # 3. Interakcja z okienkiem (Modal Vuetify ładuje się na zewnątrz karty!)
+        # 3. Interakcja z okienkiem (Opis)
         opis = "Brak opisu"
         try:
             karta.click(force=True)
             page.wait_for_timeout(1000) 
             
-            # Szukamy klasy opisu globalnie i bierzemy ostatni element (aktywne okienko)
             opis_loc = page.locator('.mb-4.text-medium-emphasis').last
             if opis_loc.is_visible(timeout=2000):
                 opis = opis_loc.inner_text().strip()
