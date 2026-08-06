@@ -6,57 +6,63 @@ import time
 
 def pobierz_widoczne_dania(page, kategoria):
     dania = []
-    # Pobieramy ilość kart, aby iterować po nich bezpiecznie
-    karty_nazwy = page.locator('.guest-menu-product-card__name')
-    ilosc_kart = karty_nazwy.count()
+    # Dajemy stronie chwilę na wygenerowanie wszystkich elementów
+    page.wait_for_timeout(2000) 
+    
+    # KROK 1: Łapiemy od razu CAŁE karty produktów, a nie same nazwy
+    karty = page.locator('.guest-menu-product-card')
+    ilosc_kart = karty.count()
     
     for i in range(ilosc_kart):
-        nazwa_el = karty_nazwy.nth(i)
+        karta = karty.nth(i)
         
-        if not nazwa_el.is_visible():
+        # Przewijamy ekran fizycznie do tej karty, żeby wymusić wczytanie obrazka!
+        karta.scroll_into_view_if_needed()
+        page.wait_for_timeout(400) 
+        
+        try:
+            # Teraz szukamy danych W DÓŁ (wewnątrz karty)
+            nazwa = karta.locator('.guest-menu-product-card__name').inner_text().strip()
+        except:
             continue
             
-        nazwa = nazwa_el.inner_text().strip()
-        karta = nazwa_el.locator("xpath=ancestor::*[contains(@class, 'guest-menu-product-card')][1]")
-        
-        # 1. Pobieranie Ceny
+        # Pobieranie Ceny
         try:
-            cena_el = karta.locator('.guest-menu-product-card__actions p').first
-            cena = cena_el.inner_text().strip()
+            cena = karta.locator('.guest-menu-product-card__actions p').first.inner_text().strip()
         except:
             cena = ""
             
-        # 2. Pobieranie Zdjęcia (ZAKTUALIZOWANE W OPARCIU O KLASĘ v-img__img)
+        # Pobieranie Zdjęcia
         zdjecie = ""
         try:
-            # Szukamy dokładnie elementu <img> posiadającego klasę v-img__img
             img_el = karta.locator('img.v-img__img').first
             src = img_el.get_attribute('src')
             if src:
-                zdjecie = src # Bezpośredni link z Firebase
+                zdjecie = src
         except:
             pass
             
-        # 3. Interakcja: Pobieranie Opisu (Składu) poprzez KLIKNIĘCIE
+        # Pobieranie Opisu (Interakcja)
         opis = "Brak opisu"
         try:
-            # Klikamy w kafelek, aby otworzyć okienko ze składem
-            nazwa_el.click()
+            # Klikamy w całą kartę, a nie w sam tekst nazwy
+            karta.click()
             
-            # Czekamy na pojawienie się tekstu z klasą składu
-            opis_loc = page.locator('.mb-4.text-medium-emphasis')
-            opis_loc.wait_for(state="visible", timeout=3000)
-            opis = opis_loc.inner_text().strip()
+            # Czekamy równe 1.5 sekundy, aż animacja okienka w pełni się zakończy
+            page.wait_for_timeout(1500) 
             
-            # Zamykamy okienko wciskając wirtualny klawisz Escape
+            opis_loc = page.locator('.mb-4.text-medium-emphasis').first
+            if opis_loc.is_visible():
+                opis = opis_loc.inner_text().strip()
+            
+            # Zamykamy i dajemy czas na animację zniknięcia okienka
             page.keyboard.press("Escape")
-            # Czekamy ułamek sekundy na zamknięcie okienka, by nie kliknąć w tło
-            page.wait_for_timeout(300)
+            page.wait_for_timeout(800)
             
         except Exception:
-            # W razie jakiegokolwiek błędu zamykamy okienko awaryjnie
+            # Gdyby coś poszło nie tak, awaryjnie zamykamy
             page.keyboard.press("Escape")
-            page.wait_for_timeout(300)
+            page.wait_for_timeout(800)
             
         dania.append({
             "Nazwa_Dania": nazwa,
