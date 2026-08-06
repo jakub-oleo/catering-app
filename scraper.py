@@ -6,63 +6,60 @@ import time
 
 def pobierz_widoczne_dania(page, kategoria):
     dania = []
-    # Dajemy stronie chwilę na wygenerowanie wszystkich elementów
     page.wait_for_timeout(2000) 
     
-    # KROK 1: Łapiemy od razu CAŁE karty produktów, a nie same nazwy
     karty = page.locator('.guest-menu-product-card')
     ilosc_kart = karty.count()
     
     for i in range(ilosc_kart):
         karta = karty.nth(i)
-        
-        # Przewijamy ekran fizycznie do tej karty, żeby wymusić wczytanie obrazka!
         karta.scroll_into_view_if_needed()
-        page.wait_for_timeout(400) 
+        page.wait_for_timeout(300) 
         
         try:
-            # Teraz szukamy danych W DÓŁ (wewnątrz karty)
             nazwa = karta.locator('.guest-menu-product-card__name').inner_text().strip()
         except:
             continue
             
-        # Pobieranie Ceny
+        # 1. Niezawodne szukanie ceny (szukamy 'zł' w dowolnej linijce tekstu karty)
+        cena = ""
         try:
-            cena = karta.locator('.guest-menu-product-card__actions p').first.inner_text().strip()
+            linie_tekstu = karta.inner_text().split('\n')
+            for linia in linie_tekstu:
+                if 'zł' in linia.lower():
+                    cena = linia.strip()
+                    break
         except:
-            cena = ""
+            pass
             
-        # Pobieranie Zdjęcia
+        # 2. Pobieranie zdjęcia
         zdjecie = ""
         try:
-            img_el = karta.locator('img.v-img__img').first
+            img_el = karta.locator('img').first
             src = img_el.get_attribute('src')
+            if not src or 'data:image' in src:
+                src = img_el.get_attribute('data-src')
             if src:
                 zdjecie = src
         except:
             pass
             
-        # Pobieranie Opisu (Interakcja)
+        # 3. Interakcja z okienkiem (Modal Vuetify ładuje się na zewnątrz karty!)
         opis = "Brak opisu"
         try:
-            # Klikamy w całą kartę, a nie w sam tekst nazwy
-            karta.click()
+            karta.click(force=True)
+            page.wait_for_timeout(1000) 
             
-            # Czekamy równe 1.5 sekundy, aż animacja okienka w pełni się zakończy
-            page.wait_for_timeout(1500) 
-            
-            opis_loc = page.locator('.mb-4.text-medium-emphasis').first
-            if opis_loc.is_visible():
+            # Szukamy klasy opisu globalnie i bierzemy ostatni element (aktywne okienko)
+            opis_loc = page.locator('.mb-4.text-medium-emphasis').last
+            if opis_loc.is_visible(timeout=2000):
                 opis = opis_loc.inner_text().strip()
             
-            # Zamykamy i dajemy czas na animację zniknięcia okienka
             page.keyboard.press("Escape")
-            page.wait_for_timeout(800)
-            
-        except Exception:
-            # Gdyby coś poszło nie tak, awaryjnie zamykamy
+            page.wait_for_timeout(500)
+        except:
             page.keyboard.press("Escape")
-            page.wait_for_timeout(800)
+            page.wait_for_timeout(500)
             
         dania.append({
             "Nazwa_Dania": nazwa,
@@ -73,6 +70,7 @@ def pobierz_widoczne_dania(page, kategoria):
         })
         
     return dania
+    
 
 def pobierz_pelne_menu(url):
     print(f"🌐 Otwieram przeglądarkę i łączę z: {url}...")
