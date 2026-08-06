@@ -114,12 +114,33 @@ with tab_menu:
                     srednia_wyswietl = "Brak ocen"
 
                 with st.container(border=True):
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.markdown(f"**{row['Nazwa_Dania']}**")
-                        st.caption(f"{row['Opis']}")
-                    with col2:
+                    # Zmieniamy układ na 3 kolumny (1 część na zdjęcie, 3 na tekst, 1 na ocenę)
+                    col_img, col_txt, col_ocena = st.columns([1, 3, 1])
+                    
+                    with col_img:
+                        # Jeśli jest link do zdjęcia, wyświetlamy je, jeśli nie - emoji
+                        if 'Zdjecie' in row and str(row['Zdjecie']).startswith('http'):
+                            st.image(row['Zdjecie'], use_container_width=True)
+                        else:
+                            st.markdown("<h1 style='text-align: center;'>🍽️</h1>", unsafe_allow_html=True)
+                            
+                    with col_txt:
+                        cena_str = f" | {row['Cena']}" if 'Cena' in row and str(row['Cena']).strip() != "" else ""
+                        st.markdown(f"**{row['Nazwa_Dania']}{cena_str}**")
+                        
+                        if str(row['Opis']).strip() != "Brak opisu":
+                            st.caption(f"🥗 *Skład:* {row['Opis']}")
+                            
+                    with col_ocena:
                         st.markdown(f"**{srednia_wyswietl}**")
+                        
+                    if not opinie_dania.empty:
+                        with st.expander("💬 Komentarze"):
+                            for _, op in opinie_dania.iterrows():
+                                autor = op['Autor'] if str(op['Autor']).strip() != "" else "Anonim"
+                                komentarz = op['Komentarz'] if str(op['Komentarz']).strip() != "" else "*Brak komentarza*"
+                                ocena_indywidualna = op['Srednia_Obliczona']
+                                st.markdown(f"- **{autor}** ({ocena_indywidualna}⭐): {komentarz}")
                         
                     if not opinie_dania.empty:
                         with st.expander("💬 Komentarze"):
