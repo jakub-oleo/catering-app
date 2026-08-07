@@ -4,82 +4,60 @@ import gspread
 import uuid
 import time
 
-def pobierz_widoczne_dania(page, kategoria):
-    dania = []
+def pobierz_pelne_menu(url):
+    print(f"🌐 Otwieram przeglądarkę i łączę z: {url}...")
+    dni_tygodnia = ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek"]
+    kategorie = ["Kanapki", "Tortille", "Sałatki", "Desery", "Jogurty", "Śniadania", "Lancze", "Makarony", "Sushi", "Napoje"]
     
-    # Czekamy aż kafelki się załadują
-    try:
-        page.wait_for_selector('.guest-menu-product-card__name', state='visible', timeout=4000)
-        page.wait_for_timeout(1000)
-    except Exception:
-        return []
-        
-    karty_nazwy = page.locator('.guest-menu-product-card__name')
-    ilosc_kart = karty_nazwy.count()
+    menu_tygodniowe = {dzien: [] for dzien in dni_tygodnia}
     
-    for i in range(ilosc_kart):
-        nazwa_el = karty_nazwy.nth(i)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
         
-        # Przewijamy do elementu i upewniamy się, że jest widoczny
-        nazwa_el.scroll_into_view_if_needed()
-        page.wait_for_timeout(300)
-        
-        if not nazwa_el.is_visible():
-            continue
-            
-        nazwa = nazwa_el.inner_text().strip()
-        karta = nazwa_el.locator("xpath=ancestor::div[contains(@class, 'v-card')][1]")
-        
-        # 1. POBIERANIE CENY (na podstawie Twojego HTML)
-        cena = ""
         try:
-            cena_el = karta.locator('.guest-menu-product-card__actions p').first
-            cena = cena_el.inner_text().strip()
-        except:
-            pass
+            page.goto(url)
+            page.wait_for_timeout(3000)
             
-        # 2. POBIERANIE ZDJĘCIA (na podstawie Twojego HTML)
-        zdjecie = ""
-        try:
-            img_el = karta.locator('img.v-img__img').first
-            src = img_el.get_attribute('src')
-            if src:
-                zdjecie = src
-        except:
-            pass
-            
-        # 3. INTERAKCJA I POBIERANIE OPISU (na podstawie Twojego HTML)
-        opis = "Brak opisu"
-        try:
-            # Klikamy w sam środek kafelka (nie zawsze kliknięcie w nazwę działa poprawnie, lepiej w całą kartę)
-            karta.click(force=True)
-            
-            # Czekamy na okienko dialogowe (wskazana przez Ciebie klasa)
-            modal = page.locator('.guest-product-dialog__card').last
-            modal.wait_for(state='visible', timeout=3000)
-            
-            # Pobieramy opis z aktywnego okienka
-            opis_el = modal.locator('p.text-medium-emphasis').first
-            if opis_el.is_visible():
-                opis = opis_el.inner_text().strip()
+            for dzien in dni_tygodnia:
+                print(f"\n📅 Pobieram menu na: {dzien}")
                 
-            # Zamykamy
-            page.keyboard.press("Escape")
-            page.wait_for_timeout(500)
-        except:
-            # Awaryjne zamknięcie
-            page.keyboard.press("Escape")
-            page.wait_for_timeout(500)
+                # Upewniamy się, że żadne okienko nie blokuje zmiany dnia
+                if page.locator('.guest-product-dialog__card').is_visible():
+                    page.keyboard.press("Escape")
+                    page.wait_for_timeout(300)
+                    
+                try:
+                    # Uniwersalne klikanie w tekst, nieważne czy to przycisk czy span
+                    page.get_by_text(dzien, exact=True).first.click(timeout=3000)
+                    page.wait_for_timeout(1000)
+                except:
+                    print(f"⚠️ Nie mogłem kliknąć w {dzien}.")
+                    continue
+                
+                for kategoria in kategorie:
+                    # Upewniamy się, że żadne okienko nie blokuje zmiany kategorii
+                    if page.locator('.guest-product-dialog__card').is_visible():
+                        page.keyboard.press("Escape")
+                        page.wait_for_timeout(300)
+                        
+                    try:
+                        # Uniwersalne klikanie w nazwę kategorii
+                        page.get_by_text(kategoria, exact=True).first.click(timeout=3000)
+                        page.wait_for_timeout(1500) 
+                        
+                        zebrane = pobierz_widoczne_dania(page, kategoria)
+                        if zebrane:
+                            print(f"   ✔️ {kategoria}: Znaleziono {len(zebrane)} pozycji")
+                            menu_tygodniowe[dzien].extend(zebrane)
+                    except:
+                        pass
+        except Exception as e:
+            print(f"❌ Błąd nawigacji: {e}")
+        finally:
+            browser.close()
             
-        dania.append({
-            "Nazwa_Dania": nazwa,
-            "Opis": opis,
-            "Kategoria": kategoria,
-            "Cena": cena,
-            "Zdjecie": zdjecie
-        })
-        
-    return dania
+    return menu_tygodniowe
     
 
 def pobierz_pelne_menu(url):
