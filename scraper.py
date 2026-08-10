@@ -5,28 +5,31 @@ import uuid
 
 def pobierz_widoczne_dania(page, kategoria):
     dania = []
-    # Zwykła, bezpieczna pauza na załadowanie elementów
     page.wait_for_timeout(2000)
     
-    # Łapiemy CAŁE kontenery kart, aby połączyć nazwę z ceną
-    karty = page.locator('.v-card-item__content').all()
+    # Łapiemy całe główne karty produktów (zamiast samego contentu), 
+    # żeby mieć w zasięgu i tekst, i zdjęcie na górze
+    karty = page.locator('.v-card').all() 
     
     for karta in karty:
         nazwa_el = karta.locator('.guest-menu-product-card__name')
         
-        # Sprawdzamy widoczność po nazwie elementu
         if nazwa_el.is_visible():
             nazwa = nazwa_el.inner_text().strip()
             
-            # Szukamy ceny wewnątrz tej samej karty
             cena_el = karta.locator('.guest-menu-product-card__actions p')
             cena = cena_el.first.inner_text().strip() if cena_el.count() > 0 else ""
+            
+            # Wyszukiwanie zdjęcia i pobieranie atrybutu 'src'
+            img_el = karta.locator('img.v-img__img')
+            zdjecie_url = img_el.first.get_attribute('src') if img_el.count() > 0 else ""
             
             dania.append({
                 "Nazwa_Dania": nazwa,
                 "Opis": "Brak opisu",
                 "Kategoria": kategoria,
-                "Cena": cena  # Dodajemy wyciągniętą cenę
+                "Cena": cena,
+                "Zdjecie": zdjecie_url # Nowy klucz w słowniku!
             })
             
     return dania
@@ -128,8 +131,16 @@ def aktualizuj_baze_danych(menu_tygodniowe):
                 nowe_id = f"D-{str(uuid.uuid4())[:6]}"
                 formula = f'=JEŻELI.BŁĄD(ZAOKR(ŚREDNIA.JEŻELI(Opinie!C:C; "{nowe_id}"; Opinie!I:I); 1); 0)'
                 
-                # Zwróć uwagę na przedostatni argument (Cena) dodany do arkusza (kolumna F)
-                nowe_do_katalogu.append([nowe_id, nazwa, danie["Kategoria"], danie["Opis"], formula, danie.get("Cena", ""), ""])
+                # Zastępujemy ostatni pusty string na końcu listy linkiem do zdjęcia
+                nowe_do_katalogu.append([
+                    nowe_id, 
+                    nazwa, 
+                    danie["Kategoria"], 
+                    danie["Opis"], 
+                    formula, 
+                    danie.get("Cena", ""), 
+                    danie.get("Zdjecie", "") # Kolumna ze zdjęciem (G)
+                ])
                 znane_nazwy.append(nazwa)
                 id_map[nazwa] = nowe_id
                 dodano_nowe += 1
