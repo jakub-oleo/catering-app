@@ -267,8 +267,22 @@ with tab_statystyki:
                 
     with col_stat2:
         st.subheader("🌟 Nowości w menu")
-        nowosci = pelny_katalog.tail(5)
-        for i, row in enumerate(nowosci.iterrows(), 1):
-            dane = row[1]
-            st.markdown(f"**- {dane['Nazwa_Dania']}**")
-            st.caption(f"Kategoria: {dane['Kategoria']}")
+        
+        # Sprawdzamy, czy kolumna istnieje i czy ma jakieś dane (zabezpieczenie dla starych wpisów)
+        if 'Data_Dodania' in pelny_katalog.columns:
+            # Filtrujemy tylko te wiersze, które faktycznie mają wpisaną datę
+            katalog_z_data = pelny_katalog[pelny_katalog['Data_Dodania'].astype(str).str.strip() != ""]
+            
+            if not katalog_z_data.empty:
+                najnowsza_data = katalog_z_data['Data_Dodania'].max()
+                nowosci = katalog_z_data[katalog_z_data['Data_Dodania'] == najnowsza_data]
+                
+                st.caption(f"Ostatnia aktualizacja bazy: {najnowsza_data}")
+                for i, row in enumerate(nowosci.iterrows(), 1):
+                    dane = row[1]
+                    st.markdown(f"**- {dane['Nazwa_Dania']}**")
+                    st.caption(f"Kategoria: {dane['Kategoria']}")
+            else:
+                st.info("Brak nowych dań do wyświetlenia. Czekamy na piątkową aktualizację!")
+        else:
+            st.info("Brak kolumny z datą w bazie danych.")
