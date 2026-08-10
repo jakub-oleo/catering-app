@@ -1,8 +1,25 @@
-from playwright.sync_api import sync_playwright, TimeoutError
+from playwright.sync_api import sync_playwright
 from datetime import date, timedelta
 import gspread
 import uuid
-import time
+
+def pobierz_widoczne_dania(page, kategoria):
+    dania = []
+    # Zwykła, bezpieczna pauza na załadowanie elementów
+    page.wait_for_timeout(2000)
+    
+    # Łapiemy po prostu nazwy, bez klikania i cudowania z oknami
+    karty_nazwy = page.locator('.guest-menu-product-card__name').all()
+    
+    for nazwa_el in karty_nazwy:
+        if nazwa_el.is_visible():
+            nazwa = nazwa_el.inner_text().strip()
+            dania.append({
+                "Nazwa_Dania": nazwa,
+                "Opis": "Brak opisu",
+                "Kategoria": kategoria
+            })
+    return dania
 
 def pobierz_pelne_menu(url):
     print(f"🌐 Otwieram przeglądarkę i łączę z: {url}...")
@@ -12,62 +29,7 @@ def pobierz_pelne_menu(url):
     menu_tygodniowe = {dzien: [] for dzien in dni_tygodnia}
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        
-        try:
-            page.goto(url)
-            page.wait_for_timeout(3000)
-            
-            for dzien in dni_tygodnia:
-                print(f"\n📅 Pobieram menu na: {dzien}")
-                
-                # Upewniamy się, że żadne okienko nie blokuje zmiany dnia
-                if page.locator('.guest-product-dialog__card').is_visible():
-                    page.keyboard.press("Escape")
-                    page.wait_for_timeout(300)
-                    
-                try:
-                    # Uniwersalne klikanie w tekst, nieważne czy to przycisk czy span
-                    page.get_by_text(dzien, exact=True).first.click(timeout=3000)
-                    page.wait_for_timeout(1000)
-                except:
-                    print(f"⚠️ Nie mogłem kliknąć w {dzien}.")
-                    continue
-                
-                for kategoria in kategorie:
-                    # Upewniamy się, że żadne okienko nie blokuje zmiany kategorii
-                    if page.locator('.guest-product-dialog__card').is_visible():
-                        page.keyboard.press("Escape")
-                        page.wait_for_timeout(300)
-                        
-                    try:
-                        # Uniwersalne klikanie w nazwę kategorii
-                        page.get_by_text(kategoria, exact=True).first.click(timeout=3000)
-                        page.wait_for_timeout(1500) 
-                        
-                        zebrane = pobierz_widoczne_dania(page, kategoria)
-                        if zebrane:
-                            print(f"   ✔️ {kategoria}: Znaleziono {len(zebrane)} pozycji")
-                            menu_tygodniowe[dzien].extend(zebrane)
-                    except:
-                        pass
-        except Exception as e:
-            print(f"❌ Błąd nawigacji: {e}")
-        finally:
-            browser.close()
-            
-    return menu_tygodniowe
-    
-
-def pobierz_pelne_menu(url):
-    print(f"🌐 Otwieram przeglądarkę i łączę z: {url}...")
-    dni_tygodnia = ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek"]
-    kategorie = ["Kanapki", "Tortille", "Sałatki", "Desery", "Jogurty", "Śniadania", "Lancze", "Makarony", "Sushi", "Napoje"]
-    
-    menu_tygodniowe = {dzien: [] for dzien in dni_tygodnia}
-    
-    with sync_playwright() as p:
+        # headless=True dla GitHuba!
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         
@@ -91,7 +53,7 @@ def pobierz_pelne_menu(url):
                         
                         zebrane = pobierz_widoczne_dania(page, kategoria)
                         if zebrane:
-                            print(f"  ✔️ {kategoria}: Znaleziono {len(zebrane)} pozycji")
+                            print(f"   ✔️ {kategoria}: Znaleziono {len(zebrane)} pozycji")
                             menu_tygodniowe[dzien].extend(zebrane)
                     except:
                         pass
@@ -151,13 +113,13 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         nowe_do_katalogu = []
         dodano_nowe = 0
         
-        # 1. Zasilanie Katalogu z POLSKIMI formułami
         for danie in unikalny_katalog:
             nazwa = danie["Nazwa_Dania"]
             if nazwa not in znane_nazwy:
                 nowe_id = f"D-{str(uuid.uuid4())[:6]}"
-                formula = f'=JEŻELI.BŁĄD(ZAOKR(ŚREDNIA.JEŻELI(Opinie!C:C; "{nowe_id}"; Opinie!I:I); 1); 		0)'
-                nowe_do_katalogu.append([nowe_id, nazwa, danie["Kategoria"], danie["Opis"], formula, danie["Cena"], danie["Zdjecie"]])
+                formula = f'=JEŻELI.BŁĄD(ZAOKR(ŚREDNIA.JEŻELI(Opinie!C:C; "{nowe_id}"; Opinie!I:I); 1); 0)'
+                # Wrzucamy z powrotem tylko 5 elementów!
+                nowe_do_katalogu.append([nowe_id, nazwa, danie["Kategoria"], danie["Opis"], formula])
                 znane_nazwy.append(nazwa)
                 id_map[nazwa] = nowe_id
                 dodano_nowe += 1
@@ -166,14 +128,13 @@ def aktualizuj_baze_danych(menu_tygodniowe):
             ws_katalog.append_rows(nowe_do_katalogu, value_input_option='USER_ENTERED')
         print(f"➕ Dodano {dodano_nowe} nowości do głównego katalogu.")
 
-        # 2. CAŁKOWITE CZYSZCZENIE MENU DNIA
         print("🧹 Czyszczenie starego menu dnia...")
         ws_menu.clear()
         ws_menu.append_row(['Data', 'ID_Dania', 'Nazwa_Dania'])
 
         nowe_do_menu = []
         zapisane_menu = 0
-        aktualny_wiersz_menu = 1 # Zaczynamy od wiersza 1 (nagłówek)
+        aktualny_wiersz_menu = 1 
         
         for danie in menu_jutro:
             nazwa = danie["Nazwa_Dania"]
@@ -181,7 +142,6 @@ def aktualizuj_baze_danych(menu_tygodniowe):
             
             if id_dania:
                 aktualny_wiersz_menu += 1
-                # Polskie VLOOKUP
                 formula_vlookup = f'=WYSZUKAJ.PIONOWO(B{aktualny_wiersz_menu}; Katalog_Dan!A:E; 2; FAŁSZ)'
                 nowe_do_menu.append([jutro_str, id_dania, formula_vlookup])
                 zapisane_menu += 1
