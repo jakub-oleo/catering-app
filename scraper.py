@@ -119,7 +119,7 @@ def aktualizuj_baze_danych(menu_tygodniowe):
                 nowe_id = f"D-{str(uuid.uuid4())[:6]}"
                 formula = f'=JEŻELI.BŁĄD(ZAOKR(ŚREDNIA.JEŻELI(Opinie!C:C; "{nowe_id}"; Opinie!I:I); 1); 0)'
                 # Wrzucamy z powrotem tylko 5 elementów!
-                nowe_do_katalogu.append([nowe_id, nazwa, danie["Kategoria"], danie["Opis"], formula])
+                nowe_do_katalogu.append([nowe_id, nazwa, danie["Kategoria"], danie["Opis"], formula, "", ""])
                 znane_nazwy.append(nazwa)
                 id_map[nazwa] = nowe_id
                 dodano_nowe += 1
