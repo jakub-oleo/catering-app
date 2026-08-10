@@ -5,10 +5,19 @@ import uuid
 
 def pobierz_widoczne_dania(page, kategoria):
     dania = []
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(1000)
     
-    # Łapiemy całe główne karty produktów (zamiast samego contentu), 
-    # żeby mieć w zasięgu i tekst, i zdjęcie na górze
+    # --- NOWOŚĆ: Scrollowanie (Lazy Loading) ---
+    # Przewijamy stronę w dół w kilku krokach, aby wymusić załadowanie zdjęć
+    for _ in range(6):
+        page.mouse.wheel(0, 800) # Przesunięcie w dół o 800 pikseli
+        page.wait_for_timeout(300) # Krótka pauza na wczytanie grafiki
+        
+    # Po przewinięciu wracamy na samą górę (opcjonalne, ale zapobiega ucięciu widoczności)
+    page.evaluate("window.scrollTo(0, 0)")
+    page.wait_for_timeout(500)
+    
+    # Łapiemy całe główne karty produktów
     karty = page.locator('.v-card').all() 
     
     for karta in karty:
@@ -29,7 +38,7 @@ def pobierz_widoczne_dania(page, kategoria):
                 "Opis": "Brak opisu",
                 "Kategoria": kategoria,
                 "Cena": cena,
-                "Zdjecie": zdjecie_url # Nowy klucz w słowniku!
+                "Zdjecie": zdjecie_url
             })
             
     return dania
