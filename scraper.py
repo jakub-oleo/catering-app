@@ -8,17 +8,27 @@ def pobierz_widoczne_dania(page, kategoria):
     # Zwykła, bezpieczna pauza na załadowanie elementów
     page.wait_for_timeout(2000)
     
-    # Łapiemy po prostu nazwy, bez klikania i cudowania z oknami
-    karty_nazwy = page.locator('.guest-menu-product-card__name').all()
+    # Łapiemy CAŁE kontenery kart, aby połączyć nazwę z ceną
+    karty = page.locator('.v-card-item__content').all()
     
-    for nazwa_el in karty_nazwy:
+    for karta in karty:
+        nazwa_el = karta.locator('.guest-menu-product-card__name')
+        
+        # Sprawdzamy widoczność po nazwie elementu
         if nazwa_el.is_visible():
             nazwa = nazwa_el.inner_text().strip()
+            
+            # Szukamy ceny wewnątrz tej samej karty
+            cena_el = karta.locator('.guest-menu-product-card__actions p')
+            cena = cena_el.first.inner_text().strip() if cena_el.count() > 0 else ""
+            
             dania.append({
                 "Nazwa_Dania": nazwa,
                 "Opis": "Brak opisu",
-                "Kategoria": kategoria
+                "Kategoria": kategoria,
+                "Cena": cena  # Dodajemy wyciągniętą cenę
             })
+            
     return dania
 
 def pobierz_pelne_menu(url):
@@ -29,7 +39,6 @@ def pobierz_pelne_menu(url):
     menu_tygodniowe = {dzien: [] for dzien in dni_tygodnia}
     
     with sync_playwright() as p:
-        # headless=True dla GitHuba!
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         
@@ -118,8 +127,9 @@ def aktualizuj_baze_danych(menu_tygodniowe):
             if nazwa not in znane_nazwy:
                 nowe_id = f"D-{str(uuid.uuid4())[:6]}"
                 formula = f'=JEŻELI.BŁĄD(ZAOKR(ŚREDNIA.JEŻELI(Opinie!C:C; "{nowe_id}"; Opinie!I:I); 1); 0)'
-                # Wrzucamy z powrotem tylko 5 elementów!
-                nowe_do_katalogu.append([nowe_id, nazwa, danie["Kategoria"], danie["Opis"], formula, "", ""])
+                
+                # Zwróć uwagę na przedostatni argument (Cena) dodany do arkusza (kolumna F)
+                nowe_do_katalogu.append([nowe_id, nazwa, danie["Kategoria"], danie["Opis"], formula, danie.get("Cena", ""), ""])
                 znane_nazwy.append(nazwa)
                 id_map[nazwa] = nowe_id
                 dodano_nowe += 1
