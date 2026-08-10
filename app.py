@@ -31,8 +31,6 @@ def load_data():
     if menu_dnia.empty:
         menu_dnia = pd.DataFrame(columns=['Data', 'ID_Dania'])
     elif 'Nazwa_Dania' in menu_dnia.columns:
-        # KLUCZOWE: Usuwamy kolumnę Nazwa_Dania z Menu przed złączeniem, 
-        # żeby zapobiec konfliktowi i powstawaniu Nazwa_Dania_x / _y
         menu_dnia = menu_dnia.drop(columns=['Nazwa_Dania'])
     
     # 3. Ładowanie i zabezpieczenie Opinii
@@ -52,16 +50,14 @@ def load_data():
         wybrane_menu = menu_dnia[menu_dnia['Data'] == dzisiejsza_data]
         wyswietlana_data = dzisiejsza_data
     else:
-        # Jeśli arkusz jest pusty, zabezpieczamy się przed błędem z max()
         wyswietlana_data = str(menu_dnia['Data'].max()) if not menu_dnia.empty else dzisiejsza_data
         wybrane_menu = menu_dnia[menu_dnia['Data'] == wyswietlana_data] if not menu_dnia.empty else pd.DataFrame(columns=menu_dnia.columns)
     
-    # Złączenie tabel - teraz będzie tylko jedna kolumna Nazwa_Dania (z katalogu)
+    # Złączenie tabel
     dzisiejsze = pd.merge(wybrane_menu, katalog, on="ID_Dania", how="left")
     
     return dzisiejsze, opinie, katalog, wyswietlana_data
 
-# Funkcja pomocnicza do liczenia średniej - ZAKTUALIZOWANE KLUCZE
 def oblicz_srednia_wazona(row):
     try:
         s = float(row.get('Ocena_Smak', 0))
@@ -76,6 +72,48 @@ def oblicz_srednia_wazona(row):
     except:
         return 0.0
 
+# --- NOWA FUNKCJA POMOCNICZA DO WYŚWIETLANIA DAŃ ---
+def wyswietl_dania(dania_df, wszystkie_opinie_df):
+    for index, row in dania_df.iterrows():
+        id_dania = row['ID_Dania']
+        opinie_dania = wszystkie_opinie_df[wszystkie_opinie_df['ID_Dania'] == id_dania]
+        
+        if not opinie_dania.empty:
+            srednia_ogolna = round(opinie_dania['Srednia_Obliczona'].mean(), 1)
+            liczba_ocen = len(opinie_dania)
+            srednia_wyswietl = f"{srednia_ogolna} ⭐ ({liczba_ocen} ocen)"
+        else:
+            srednia_wyswietl = "Brak ocen"
+
+        with st.container(border=True):
+            col_img, col_txt, col_ocena = st.columns([1, 3, 1])
+            
+            with col_img:
+                if 'Zdjecie' in row and str(row['Zdjecie']).startswith('http'):
+                    st.image(row['Zdjecie'], use_container_width=True)
+                else:
+                    st.markdown("<h1 style='text-align: center;'>🍽️</h1>", unsafe_allow_html=True)
+                    
+            with col_txt:
+                cena_str = f" | {row['Cena']}" if 'Cena' in row and str(row['Cena']).strip() != "" else ""
+                st.markdown(f"**{row['Nazwa_Dania']}{cena_str}**")
+                
+                if str(row['Opis']).strip() != "Brak opisu":
+                    st.caption(f"🥗 *Skład:* {row['Opis']}")
+                    
+            with col_ocena:
+                st.markdown(f"**{srednia_wyswietl}**")
+                
+            if not opinie_dania.empty:
+                with st.expander("💬 Komentarze"):
+                    # Usuwamy zduplikowaną pętlę komentarzy, która była w Twoim poprzednim kodzie
+                    for _, op in opinie_dania.iterrows():
+                        autor = op['Autor'] if str(op['Autor']).strip() != "" else "Anonim"
+                        komentarz = op['Komentarz'] if str(op['Komentarz']).strip() != "" else "*Brak komentarza*"
+                        ocena_indywidualna = op['Srednia_Obliczona']
+                        st.markdown(f"- **{autor}** ({ocena_indywidualna}⭐): {komentarz}")
+
+# --- START APLIKACJI ---
 try:
     dzisiejsze_menu, opinie_df, pelny_katalog, aktualna_data = load_data()
     if not opinie_df.empty:
@@ -87,7 +125,8 @@ except Exception as e:
 st.title("🍽️ Panel Ocen Cateringu")
 st.markdown(f"**Aktualne menu na:** {aktualna_data}")
 
-tab_menu, tab_ocena, tab_statystyki = st.tabs(["📋 Menu Dnia", "✍️ Dodaj Opinię", "📈 Statystyki"])
+# DODANO NOWĄ ZAKŁADKĘ DO LISTY
+tab_menu, tab_katalog, tab_ocena, tab_statystyki = st.tabs(["📋 Menu Dnia", "📚 Pełny Katalog", "✍️ Dodaj Opinię", "📈 Statystyki"])
 
 # ==========================================
 # ZAKŁADKA 1: MENU DNIA
@@ -102,60 +141,38 @@ with tab_menu:
         dania_z_kategorii = dzisiejsze_menu[dzisiejsze_menu['Kategoria'] == wybrana_kategoria]
         
         if not dania_z_kategorii.empty:
-            for index, row in dania_z_kategorii.iterrows():
-                id_dania = row['ID_Dania']
-                opinie_dania = opinie_df[opinie_df['ID_Dania'] == id_dania]
-                
-                if not opinie_dania.empty:
-                    srednia_ogolna = round(opinie_dania['Srednia_Obliczona'].mean(), 1)
-                    liczba_ocen = len(opinie_dania)
-                    srednia_wyswietl = f"{srednia_ogolna} ⭐ ({liczba_ocen} ocen)"
-                else:
-                    srednia_wyswietl = "Brak ocen"
-
-                with st.container(border=True):
-                    # Zmieniamy układ na 3 kolumny (1 część na zdjęcie, 3 na tekst, 1 na ocenę)
-                    col_img, col_txt, col_ocena = st.columns([1, 3, 1])
-                    
-                    with col_img:
-                        # Jeśli jest link do zdjęcia, wyświetlamy je, jeśli nie - emoji
-                        if 'Zdjecie' in row and str(row['Zdjecie']).startswith('http'):
-                            st.image(row['Zdjecie'], use_container_width=True)
-                        else:
-                            st.markdown("<h1 style='text-align: center;'>🍽️</h1>", unsafe_allow_html=True)
-                            
-                    with col_txt:
-                        cena_str = f" | {row['Cena']}" if 'Cena' in row and str(row['Cena']).strip() != "" else ""
-                        st.markdown(f"**{row['Nazwa_Dania']}{cena_str}**")
-                        
-                        if str(row['Opis']).strip() != "Brak opisu":
-                            st.caption(f"🥗 *Skład:* {row['Opis']}")
-                            
-                    with col_ocena:
-                        st.markdown(f"**{srednia_wyswietl}**")
-                        
-                    if not opinie_dania.empty:
-                        with st.expander("💬 Komentarze"):
-                            for _, op in opinie_dania.iterrows():
-                                autor = op['Autor'] if str(op['Autor']).strip() != "" else "Anonim"
-                                komentarz = op['Komentarz'] if str(op['Komentarz']).strip() != "" else "*Brak komentarza*"
-                                ocena_indywidualna = op['Srednia_Obliczona']
-                                st.markdown(f"- **{autor}** ({ocena_indywidualna}⭐): {komentarz}")
-                        
-                    if not opinie_dania.empty:
-                        with st.expander("💬 Komentarze"):
-                            for _, op in opinie_dania.iterrows():
-                                autor = op['Autor'] if str(op['Autor']).strip() != "" else "Anonim"
-                                komentarz = op['Komentarz'] if str(op['Komentarz']).strip() != "" else "*Brak komentarza*"
-                                ocena_indywidualna = op['Srednia_Obliczona']
-                                st.markdown(f"- **{autor}** ({ocena_indywidualna}⭐): {komentarz}")
+            wyswietl_dania(dania_z_kategorii, opinie_df)
         else:
             st.info(f"Brak pozycji w kategorii **{wybrana_kategoria}** w tym dniu.")
     else:
         st.info("Brak kategorii w bazie danych.")
 
 # ==========================================
-# ZAKŁADKA 2: DODAJ OPINIĘ
+# ZAKŁADKA 2: PEŁNY KATALOG (NOWA)
+# ==========================================
+with tab_katalog:
+    st.header("📚 Pełny Katalog Produktów")
+    st.markdown("Poniżej znajdziesz wszystkie produkty zebrane w naszej bazie, podzielone na kategorie.")
+    
+    wszystkie_kategorie = [k for k in pelny_katalog['Kategoria'].unique().tolist() if str(k).strip() != ""]
+    
+    if wszystkie_kategorie:
+        # Pętla przechodząca przez wszystkie kategorie i wyświetlająca je jedna pod drugą
+        for kategoria in wszystkie_kategorie:
+            st.subheader(f"🔹 {kategoria}")
+            dania_w_kategorii = pelny_katalog[pelny_katalog['Kategoria'] == kategoria]
+            
+            if not dania_w_kategorii.empty:
+                wyswietl_dania(dania_w_kategorii, opinie_df)
+            else:
+                st.info("Brak dań w tej kategorii.")
+                
+            st.divider() # Delikatna linia oddzielająca kategorie od siebie
+    else:
+        st.info("Baza danych jest pusta.")
+
+# ==========================================
+# ZAKŁADKA 3: DODAJ OPINIĘ
 # ==========================================
 with tab_ocena:
     st.header("✍️ Oceń swoje zamówienie")
@@ -217,7 +234,7 @@ with tab_ocena:
                     st.error(f"❌ Błąd zapisu do chmury: {e}")
 
 # ==========================================
-# ZAKŁADKA 3: STATYSTYKI & NOWOŚCI
+# ZAKŁADKA 4: STATYSTYKI & NOWOŚCI
 # ==========================================
 with tab_statystyki:
     st.header("📈 Statystyki i Nowości")
