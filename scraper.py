@@ -133,6 +133,7 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         
         nowe_do_katalogu = []
         dodano_nowe = 0
+        dzisiaj_zapis = date.today().strftime("%Y-%m-%d") # <-- POBIERAMY DZISIEJSZĄ DATĘ
         
         for danie in unikalny_katalog:
             nazwa = danie["Nazwa_Dania"]
@@ -140,7 +141,7 @@ def aktualizuj_baze_danych(menu_tygodniowe):
                 nowe_id = f"D-{str(uuid.uuid4())[:6]}"
                 formula = f'=JEŻELI.BŁĄD(ZAOKR(ŚREDNIA.JEŻELI(Opinie!C:C; "{nowe_id}"; Opinie!I:I); 1); 0)'
                 
-                # Zastępujemy ostatni pusty string na końcu listy linkiem do zdjęcia
+                # Dodajemy dzisiaj_zapis na samym końcu (do nowej kolumny H)
                 nowe_do_katalogu.append([
                     nowe_id, 
                     nazwa, 
@@ -148,7 +149,8 @@ def aktualizuj_baze_danych(menu_tygodniowe):
                     danie["Opis"], 
                     formula, 
                     danie.get("Cena", ""), 
-                    danie.get("Zdjecie", "") # Kolumna ze zdjęciem (G)
+                    danie.get("Zdjecie", ""),
+                    dzisiaj_zapis # <-- DATA DODANIA
                 ])
                 znane_nazwy.append(nazwa)
                 id_map[nazwa] = nowe_id
