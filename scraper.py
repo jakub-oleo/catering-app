@@ -5,20 +5,42 @@ import uuid
 
 def pobierz_widoczne_dania(page, kategoria):
     dania = []
-    # Zwykła, bezpieczna pauza na załadowanie elementów
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(1000)
     
-    # Łapiemy po prostu nazwy, bez klikania i cudowania z oknami
-    karty_nazwy = page.locator('.guest-menu-product-card__name').all()
+    # --- NOWOŚĆ: Scrollowanie (Lazy Loading) ---
+    # Przewijamy stronę w dół w kilku krokach, aby wymusić załadowanie zdjęć
+    for _ in range(6):
+        page.mouse.wheel(0, 800) # Przesunięcie w dół o 800 pikseli
+        page.wait_for_timeout(300) # Krótka pauza na wczytanie grafiki
+        
+    # Po przewinięciu wracamy na samą górę (opcjonalne, ale zapobiega ucięciu widoczności)
+    page.evaluate("window.scrollTo(0, 0)")
+    page.wait_for_timeout(500)
     
-    for nazwa_el in karty_nazwy:
+    # Łapiemy całe główne karty produktów
+    karty = page.locator('.v-card').all() 
+    
+    for karta in karty:
+        nazwa_el = karta.locator('.guest-menu-product-card__name')
+        
         if nazwa_el.is_visible():
             nazwa = nazwa_el.inner_text().strip()
+            
+            cena_el = karta.locator('.guest-menu-product-card__actions p')
+            cena = cena_el.first.inner_text().strip() if cena_el.count() > 0 else ""
+            
+            # Wyszukiwanie zdjęcia i pobieranie atrybutu 'src'
+            img_el = karta.locator('img.v-img__img')
+            zdjecie_url = img_el.first.get_attribute('src') if img_el.count() > 0 else ""
+            
             dania.append({
                 "Nazwa_Dania": nazwa,
                 "Opis": "Brak opisu",
-                "Kategoria": kategoria
+                "Kategoria": kategoria,
+                "Cena": cena,
+                "Zdjecie": zdjecie_url
             })
+            
     return dania
 
 def pobierz_pelne_menu(url):
@@ -29,7 +51,6 @@ def pobierz_pelne_menu(url):
     menu_tygodniowe = {dzien: [] for dzien in dni_tygodnia}
     
     with sync_playwright() as p:
-        # headless=True dla GitHuba!
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         
@@ -112,14 +133,25 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         
         nowe_do_katalogu = []
         dodano_nowe = 0
+        dzisiaj_zapis = date.today().strftime("%Y-%m-%d") # <-- POBIERAMY DZISIEJSZĄ DATĘ
         
         for danie in unikalny_katalog:
             nazwa = danie["Nazwa_Dania"]
             if nazwa not in znane_nazwy:
                 nowe_id = f"D-{str(uuid.uuid4())[:6]}"
                 formula = f'=JEŻELI.BŁĄD(ZAOKR(ŚREDNIA.JEŻELI(Opinie!C:C; "{nowe_id}"; Opinie!I:I); 1); 0)'
-                # Wrzucamy z powrotem tylko 5 elementów!
-                nowe_do_katalogu.append([nowe_id, nazwa, danie["Kategoria"], danie["Opis"], formula, "", ""])
+                
+                # Dodajemy dzisiaj_zapis na samym końcu (do nowej kolumny H)
+                nowe_do_katalogu.append([
+                    nowe_id, 
+                    nazwa, 
+                    danie["Kategoria"], 
+                    danie["Opis"], 
+                    formula, 
+                    danie.get("Cena", ""), 
+                    danie.get("Zdjecie", ""),
+                    dzisiaj_zapis # <-- DATA DODANIA
+                ])
                 znane_nazwy.append(nazwa)
                 id_map[nazwa] = nowe_id
                 dodano_nowe += 1
