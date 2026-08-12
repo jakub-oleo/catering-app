@@ -13,7 +13,7 @@ def wybudz_aplikacje(url):
             page.wait_for_timeout(5000)
             
             # Szukamy niebieskiego przycisku z obrazka
-            przycisk = page.locator("button:has-text('Yes, get this app back up!')")
+            przycisk = page.locator('[data-testid="wakeup-button-owner"]')
             
             if przycisk.count() > 0 and przycisk.first.is_visible():
                 print("💤 Aplikacja śpi. Klikam przycisk wybudzania...")
