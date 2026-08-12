@@ -256,13 +256,40 @@ with tab_statystyki:
         if opinie_df.empty:
             st.info("Brak ocen w systemie.")
         else:
-            statystyki = opinie_df.groupby('ID_Dania').agg(Srednia=('Srednia_Obliczona', 'mean'), Liczba_Ocen=('ID_Opinii', 'count')).reset_index()
-            ranking_df = pd.merge(statystyki, pelny_katalog, on="ID_Dania")
-            top_5 = ranking_df.sort_values(by=['Srednia', 'Liczba_Ocen'], ascending=[False, False]).head(5)
+            # 1. Obliczamy standardową średnią i liczbę ocen dla każdego dania
+            statystyki = opinie_df.groupby('ID_Dania').agg(
+                Srednia=('Srednia_Obliczona', 'mean'), 
+                Liczba_Ocen=('ID_Opinii', 'count')
+            ).reset_index()
             
+            # 2. OBLICZANIE ŚREDNIEJ BAYESOWSKIEJ
+            # C = średnia ocena WSZYSTKICH dań w całej bazie
+            C = statystyki['Srednia'].mean()
+            
+            # m = waga "pewności" – minimalna liczba opinii, żebyśmy uznali ocenę za stabilną. 
+            # Ustawiamy na 3, ale jeśli będziesz miał setki opinii, możesz to zwiększyć np. do 5 lub 10.
+            m = 3.0 
+            
+            def oblicz_ranking(row):
+                v = row['Liczba_Ocen']
+                R = row['Srednia']
+                # Prawdziwy wynik rankingowy (Średnia Bayesowska)
+                return (v / (v + m) * R) + (m / (v + m) * C)
+            
+            # Dodajemy nową kolumnę z ukrytym wynikiem, po którym będziemy sortować
+            statystyki['Wynik_Rankingowy'] = statystyki.apply(oblicz_ranking, axis=1)
+            
+            # 3. Łączymy z nazwami z katalogu
+            ranking_df = pd.merge(statystyki, pelny_katalog, on="ID_Dania")
+            
+            # KLUCZOWA ZMIANA: Sortujemy po 'Wynik_Rankingowy', a nie po zwykłej 'Srednia'!
+            top_5 = ranking_df.sort_values(by=['Wynik_Rankingowy', 'Liczba_Ocen'], ascending=[False, False]).head(5)
+            
+            # 4. Wyświetlanie wyników
             for i, row in enumerate(top_5.iterrows(), 1):
                 dane = row[1]
                 st.markdown(f"**{i}. {dane['Nazwa_Dania']}**")
+                # Użytkownikom nadal pokazujemy ich "zwykłą" średnią, żeby ich nie dezorientować
                 st.caption(f"{dane['Srednia']:.1f} ⭐ ({dane['Liczba_Ocen']} opinii) | {dane['Kategoria']}")
                 
     with col_stat2:
