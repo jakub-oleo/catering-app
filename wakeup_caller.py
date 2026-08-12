@@ -23,9 +23,11 @@ def wybudz_aplikacje(url):
                 print("💤 Znalazłem przycisk wybudzania! Klikam...")
                 przycisk.click()
                 
-                print("☕ Kliknięto. Czekam, aż serwer wstanie...")
-                page.wait_for_selector(selekktor_przycisku, state="hidden", timeout=30000)
-                print("✅ Aplikacja pomyślnie wybudzona!")
+                print("☕ Kliknięto. Wymuszam 20 sekund postoju, by serwer zarejestrował żądanie...")
+                # Twarda pauza! Nie zamykamy przeglądarki, pozwalamy stronie "myśleć"
+                page.wait_for_timeout(20000)
+                
+                print("✅ Aplikacja powinna być pomyślnie wybudzona!")
                 
             except Exception:
                 print("✅ Przycisk wybudzania nie pojawił się. Aplikacja prawdopodobnie już działa!")
