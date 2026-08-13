@@ -4,7 +4,7 @@ on:
   schedule:
     # cron: 'MINUTY GODZINY * * DNI_TYGODNIA' 
     # Uruchamia o 5:00 UTC (czyli 6:00 lub 7:00 w Polsce) od poniedziałku (1) do piątku (5)
-    - cron: '0 5 * * 1-5'
+    - cron: '0 1 * * 1-5'
   workflow_dispatch: # Pozwala odpalić ręcznie z panelu
 
 jobs:
