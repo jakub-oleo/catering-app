@@ -7,17 +7,13 @@ def pobierz_widoczne_dania(page, kategoria):
     dania = []
     page.wait_for_timeout(1000)
     
-    # --- NOWOŚĆ: Scrollowanie (Lazy Loading) ---
-    # Przewijamy stronę w dół w kilku krokach, aby wymusić załadowanie zdjęć
     for _ in range(6):
-        page.mouse.wheel(0, 800) # Przesunięcie w dół o 800 pikseli
-        page.wait_for_timeout(300) # Krótka pauza na wczytanie grafiki
+        page.mouse.wheel(0, 800)
+        page.wait_for_timeout(300)
         
-    # Po przewinięciu wracamy na samą górę (opcjonalne, ale zapobiega ucięciu widoczności)
     page.evaluate("window.scrollTo(0, 0)")
     page.wait_for_timeout(500)
     
-    # Łapiemy całe główne karty produktów
     karty = page.locator('.v-card').all() 
     
     for karta in karty:
@@ -29,7 +25,6 @@ def pobierz_widoczne_dania(page, kategoria):
             cena_el = karta.locator('.guest-menu-product-card__actions p')
             cena = cena_el.first.inner_text().strip() if cena_el.count() > 0 else ""
             
-            # Wyszukiwanie zdjęcia i pobieranie atrybutu 'src'
             img_el = karta.locator('img.v-img__img')
             zdjecie_url = img_el.first.get_attribute('src') if img_el.count() > 0 else ""
             
@@ -133,7 +128,7 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         
         nowe_do_katalogu = []
         dodano_nowe = 0
-        dzisiaj_zapis = date.today().strftime("%Y-%m-%d") # <-- POBIERAMY DZISIEJSZĄ DATĘ
+        dzisiaj_zapis = date.today().strftime("%Y-%m-%d")
         
         for danie in unikalny_katalog:
             nazwa = danie["Nazwa_Dania"]
@@ -141,7 +136,6 @@ def aktualizuj_baze_danych(menu_tygodniowe):
                 nowe_id = f"D-{str(uuid.uuid4())[:6]}"
                 formula = f'=JEŻELI.BŁĄD(ZAOKR(ŚREDNIA.JEŻELI(Opinie!C:C; "{nowe_id}"; Opinie!I:I); 1); 0)'
                 
-                # Dodajemy dzisiaj_zapis na samym końcu (do nowej kolumny H)
                 nowe_do_katalogu.append([
                     nowe_id, 
                     nazwa, 
@@ -150,7 +144,7 @@ def aktualizuj_baze_danych(menu_tygodniowe):
                     formula, 
                     danie.get("Cena", ""), 
                     danie.get("Zdjecie", ""),
-                    dzisiaj_zapis # <-- DATA DODANIA
+                    dzisiaj_zapis
                 ])
                 znane_nazwy.append(nazwa)
                 id_map[nazwa] = nowe_id
