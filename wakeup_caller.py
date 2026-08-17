@@ -5,7 +5,6 @@ def wybudz_aplikacje(url):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         
-        # MASKOWANIE BOTA
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
@@ -15,7 +14,6 @@ def wybudz_aplikacje(url):
             page.goto(url)
             print("⏳ Strona załadowana. Sprawdzam, czy aplikacja śpi...")
             
-            # Czeka inteligentnie DO 15 sekund na przycisk z odpowiednim data-testid
             selekktor_przycisku = '[data-testid*="wakeup-button"]'
             
             try:
@@ -24,7 +22,6 @@ def wybudz_aplikacje(url):
                 przycisk.click()
                 
                 print("☕ Kliknięto. Wymuszam 20 sekund postoju, by serwer zarejestrował żądanie...")
-                # Twarda pauza! Nie zamykamy przeglądarki, pozwalamy stronie "myśleć"
                 page.wait_for_timeout(20000)
                 
                 print("✅ Aplikacja powinna być pomyślnie wybudzona!")
