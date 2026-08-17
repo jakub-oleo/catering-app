@@ -7,7 +7,7 @@ import os
 st.set_page_config(page_title="Catering Rating App", page_icon="🍱", layout="centered")
 
 if 'dodano_opinie' in st.session_state and st.session_state['dodano_opinie']:
-    st.success("Dziękujemy! Twoja opinia została pomyślnie zapisana. 🎈")
+    st.success("Dziękujemy! Twoja opinia została pomyślnie zapisana.")
     st.session_state['dodano_opinie'] = False 
 
 @st.cache_data(ttl=600) 
