@@ -268,7 +268,7 @@ with tab_statystyki:
             
             # m = waga "pewności" – minimalna liczba opinii, żebyśmy uznali ocenę za stabilną. 
             # Ustawiamy na 3, ale jeśli będziesz miał setki opinii, możesz to zwiększyć np. do 5 lub 10.
-            m = 3.0 
+            m = 2.0 
             
             def oblicz_ranking(row):
                 v = row['Liczba_Ocen']
