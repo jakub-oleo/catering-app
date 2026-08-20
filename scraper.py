@@ -3,50 +3,63 @@ from datetime import date, timedelta
 import gspread
 import uuid
 
-def pobierz_widoczne_dania(page, kategoria):
+def pobierz_dania_z_dnia(page):
     dania = []
+    # Czekamy chwilę po kliknięciu w dzień, by strona się odświeżyła
+    page.wait_for_timeout(2000)
+    
+    # 1. SCROLLOWANIE (LAZY LOADING ZDJĘĆ)
+    # Zwiększamy ilość zjazdów, bo strona z całym menu na raz będzie bardzo długa
+    for _ in range(15):
+        page.mouse.wheel(0, 800)
+        page.wait_for_timeout(300)
+        
+    page.evaluate("window.scrollTo(0, 0)")
     page.wait_for_timeout(1000)
     
-    # --- NOWOŚĆ: Scrollowanie (Lazy Loading) ---
-    # Przewijamy stronę w dół w kilku krokach, aby wymusić załadowanie zdjęć
-    for _ in range(6):
-        page.mouse.wheel(0, 800) # Przesunięcie w dół o 800 pikseli
-        page.wait_for_timeout(300) # Krótka pauza na wczytanie grafiki
+    # 2. POBIERANIE DANYCH (CZYTANIE Z GÓRY NA DÓŁ)
+    # Używamy JavaScriptu, żeby przeczytać stronę po kolei, element za elementem
+    wyniki = page.evaluate('''() => {
+        let zebrane = [];
+        let aktualnaKategoria = "Inne"; // Kategoria domyślna
         
-    # Po przewinięciu wracamy na samą górę (opcjonalne, ale zapobiega ucięciu widoczności)
-    page.evaluate("window.scrollTo(0, 0)")
-    page.wait_for_timeout(500)
-    
-    # Łapiemy całe główne karty produktów
-    karty = page.locator('.v-card').all() 
-    
-    for karta in karty:
-        nazwa_el = karta.locator('.guest-menu-product-card__name')
+        // Wyciągamy nagłówki H2 (kategorie) oraz .v-card (dania) w kolejności, w jakiej są na stronie
+        let elementy = document.querySelectorAll('h2.text-title-large, .v-card');
         
-        if nazwa_el.is_visible():
-            nazwa = nazwa_el.inner_text().strip()
-            
-            cena_el = karta.locator('.guest-menu-product-card__actions p')
-            cena = cena_el.first.inner_text().strip() if cena_el.count() > 0 else ""
-            
-            # Wyszukiwanie zdjęcia i pobieranie atrybutu 'src'
-            img_el = karta.locator('img.v-img__img')
-            zdjecie_url = img_el.first.get_attribute('src') if img_el.count() > 0 else ""
-            
-            dania.append({
-                "Nazwa_Dania": nazwa,
-                "Opis": "Brak opisu",
-                "Kategoria": kategoria,
-                "Cena": cena,
-                "Zdjecie": zdjecie_url
-            })
-            
-    return dania
+        for (let el of elementy) {
+            if (el.tagName.toLowerCase() === 'h2') {
+                // Jeśli to nagłówek, zapamiętujemy jego tekst jako nową kategorię
+                aktualnaKategoria = el.innerText.trim();
+            } else if (el.classList.contains('v-card')) {
+                // Jeśli to karta, szukamy w niej nazwy
+                let nameEl = el.querySelector('.guest-menu-product-card__name');
+                if (!nameEl) continue; // Pomijamy puste/inne karty systemu
+                
+                let nazwa = nameEl.innerText.trim();
+                
+                let cenaEl = el.querySelector('.guest-menu-product-card__actions p');
+                let cena = cenaEl ? cenaEl.innerText.trim() : "";
+                
+                let imgEl = el.querySelector('img.v-img__img');
+                let zdjecieUrl = imgEl ? imgEl.getAttribute('src') : "";
+                
+                zebrane.push({
+                    "Nazwa_Dania": nazwa,
+                    "Opis": "Brak opisu",
+                    "Kategoria": aktualnaKategoria,
+                    "Cena": cena,
+                    "Zdjecie": zdjecieUrl
+                });
+            }
+        }
+        return zebrane;
+    }''')
+    
+    return wyniki
 
 def pobierz_pelne_menu(url):
     print(f"🌐 Otwieram przeglądarkę i łączę z: {url}...")
     dni_tygodnia = ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek"]
-    kategorie = ["Kanapki", "Tortille", "Sałatki", "Desery", "Jogurty", "Śniadania", "Lancze", "Makarony", "Sushi", "Napoje"]
     
     menu_tygodniowe = {dzien: [] for dzien in dni_tygodnia}
     
@@ -61,23 +74,19 @@ def pobierz_pelne_menu(url):
             for dzien in dni_tygodnia:
                 print(f"\n📅 Pobieram menu na: {dzien}")
                 try:
+                    # Klikamy w dany dzień tygodnia
                     page.locator(f"button:has-text('{dzien}')").first.click(timeout=3000)
-                    page.wait_for_timeout(1000)
+                    page.wait_for_timeout(1500)
                 except:
                     print(f"⚠️ Nie mogłem kliknąć w {dzien}.")
                     continue
                 
-                for kategoria in kategorie:
-                    try:
-                        page.locator(f"button:has-text('{kategoria}')").first.click(timeout=3000)
-                        page.wait_for_timeout(1500) 
-                        
-                        zebrane = pobierz_widoczne_dania(page, kategoria)
-                        if zebrane:
-                            print(f"   ✔️ {kategoria}: Znaleziono {len(zebrane)} pozycji")
-                            menu_tygodniowe[dzien].extend(zebrane)
-                    except:
-                        pass
+                # Zamiast skakać po kategoriach, czytamy całą stronę naraz!
+                zebrane = pobierz_dania_z_dnia(page)
+                if zebrane:
+                    print(f"   ✔️ Znaleziono łącznie {len(zebrane)} pozycji w menu na {dzien}")
+                    menu_tygodniowe[dzien].extend(zebrane)
+                    
         except Exception as e:
             print(f"❌ Błąd nawigacji: {e}")
         finally:
@@ -130,18 +139,24 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         katalog_dane = ws_katalog.get_all_records()
         znane_nazwy = [row['Nazwa_Dania'] for row in katalog_dane]
         id_map = {row['Nazwa_Dania']: row['ID_Dania'] for row in katalog_dane}
+        znane_id = list(id_map.values()) 
         
         nowe_do_katalogu = []
         dodano_nowe = 0
-        dzisiaj_zapis = date.today().strftime("%Y-%m-%d") # <-- POBIERAMY DZISIEJSZĄ DATĘ
+        dzisiaj_zapis = date.today().strftime("%Y-%m-%d")
         
         for danie in unikalny_katalog:
             nazwa = danie["Nazwa_Dania"]
             if nazwa not in znane_nazwy:
-                nowe_id = f"D-{str(uuid.uuid4())[:6]}"
+                # Gwarancja w 100% unikalnego ID
+                while True:
+                    nowe_id = f"D-{str(uuid.uuid4())[:6]}"
+                    if nowe_id not in znane_id:
+                        znane_id.append(nowe_id)
+                        break
+                        
                 formula = f'=JEŻELI.BŁĄD(ZAOKR(ŚREDNIA.JEŻELI(Opinie!C:C; "{nowe_id}"; Opinie!I:I); 1); 0)'
                 
-                # Dodajemy dzisiaj_zapis na samym końcu (do nowej kolumny H)
                 nowe_do_katalogu.append([
                     nowe_id, 
                     nazwa, 
@@ -150,7 +165,7 @@ def aktualizuj_baze_danych(menu_tygodniowe):
                     formula, 
                     danie.get("Cena", ""), 
                     danie.get("Zdjecie", ""),
-                    dzisiaj_zapis # <-- DATA DODANIA
+                    dzisiaj_zapis 
                 ])
                 znane_nazwy.append(nazwa)
                 id_map[nazwa] = nowe_id
