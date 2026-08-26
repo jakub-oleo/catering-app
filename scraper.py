@@ -225,10 +225,7 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         
     except Exception as e:
         print(f"❌ BŁĄD POŁĄCZENIA Z GOOGLE SHEETS: {e}")
-    if not czy_puste:
-        aktualizuj_baze_danych(menu_tygodnia)
-    else:
-        print("Nie pobrano żadnych danych ze strony.")
+
 
 if __name__ == "__main__":
     adres = "https://kanapkaman.pl/sandwiczSzop"
