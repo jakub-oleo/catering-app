@@ -141,14 +141,22 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         id_map = {row['Nazwa_Dania']: row['ID_Dania'] for row in katalog_dane}
         znane_id = list(id_map.values()) 
         
+        # Tworzymy słownik z informacją o tym, czy dane zdjęcie istnieje w naszej bazie.
+        # Enumerate(start=2) dlatego, że wiersz 1 to nagłówki, więc pierwsze danie jest w wierszu 2.
+        status_zdjec = {row['Nazwa_Dania']: {"zdjecie_obecne": row.get('Zdjecie', '') != '', "wiersz": idx} 
+                        for idx, row in enumerate(katalog_dane, start=2)}
+        
         nowe_do_katalogu = []
         dodano_nowe = 0
+        zaktualizowano_zdjecia = 0
         dzisiaj_zapis = date.today().strftime("%Y-%m-%d")
         
         for danie in unikalny_katalog:
             nazwa = danie["Nazwa_Dania"]
+            pobrane_zdjecie = danie.get("Zdjecie", "")
+            
             if nazwa not in znane_nazwy:
-                # Gwarancja w 100% unikalnego ID
+                # 1. DODAWANIE NOWEGO DANIA (Logika bez zmian)
                 while True:
                     nowe_id = f"D-{str(uuid.uuid4())[:6]}"
                     if nowe_id not in znane_id:
@@ -164,16 +172,34 @@ def aktualizuj_baze_danych(menu_tygodniowe):
                     danie["Opis"], 
                     formula, 
                     danie.get("Cena", ""), 
-                    danie.get("Zdjecie", ""),
+                    pobrane_zdjecie,
                     dzisiaj_zapis 
                 ])
                 znane_nazwy.append(nazwa)
                 id_map[nazwa] = nowe_id
                 dodano_nowe += 1
                 
+            else:
+                # 2. AKTUALIZACJA ISTNIEJĄCEGO DANIA (NOWOŚĆ - Sprawdzanie brakującego zdjęcia)
+                dane_z_bazy = status_zdjec.get(nazwa)
+                
+                # Jeśli w naszej bazie NIE MA zdjęcia, a w pobranych ze strony JEST zdjęcie
+                if dane_z_bazy and not dane_z_bazy["zdjecie_obecne"] and pobrane_zdjecie:
+                    numer_wiersza = dane_z_bazy["wiersz"]
+                    # Kolumna G to 7. kolumna w Google Sheets
+                    # Format "G{numer_wiersza}" daje nam np. "G45"
+                    komorka_do_zmiany = f'G{numer_wiersza}'
+                    
+                    print(f"   📸 Aktualizuję brakujące zdjęcie dla: {nazwa}")
+                    ws_katalog.update_acell(komorka_do_zmiany, pobrane_zdjecie)
+                    zaktualizowano_zdjecia += 1
+                
         if nowe_do_katalogu:
             ws_katalog.append_rows(nowe_do_katalogu, value_input_option='USER_ENTERED')
+            
         print(f"➕ Dodano {dodano_nowe} nowości do głównego katalogu.")
+        if zaktualizowano_zdjecia > 0:
+            print(f"🖼️ Zaktualizowano brakujące zdjęcia dla {zaktualizowano_zdjecia} produktów.")
 
         print("🧹 Czyszczenie starego menu dnia...")
         ws_menu.clear()
@@ -199,12 +225,6 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         
     except Exception as e:
         print(f"❌ BŁĄD POŁĄCZENIA Z GOOGLE SHEETS: {e}")
-
-if __name__ == "__main__":
-    adres = "https://kanapkaman.pl/sandwiczSzop"
-    menu_tygodnia = pobierz_pelne_menu(adres)
-    
-    czy_puste = all(len(dania) == 0 for dania in menu_tygodnia.values())
     if not czy_puste:
         aktualizuj_baze_danych(menu_tygodnia)
     else:
