@@ -16,14 +16,17 @@ def pobierz_dania_z_dnia(page):
     
     wyniki = page.evaluate('''() => {
         let zebrane = [];
-        let aktualnaKategoria = "Inne";
+        let aktualnaKategoria = "Inne"; // Kategoria domyślna
         
+        // Wyciągamy nagłówki H2 (kategorie) oraz .v-card (dania) w kolejności, w jakiej są na stronie
         let elementy = document.querySelectorAll('h2.text-title-large, .v-card');
         
         for (let el of elementy) {
             if (el.tagName.toLowerCase() === 'h2') {
+                // Jeśli to nagłówek, zapamiętujemy jego tekst jako nową kategorię
                 aktualnaKategoria = el.innerText.trim();
             } else if (el.classList.contains('v-card')) {
+                // Jeśli to karta, szukamy w niej nazwy
                 let nameEl = el.querySelector('.guest-menu-product-card__name');
                 if (!nameEl) continue; // Pomijamy puste/inne karty systemu
                 
@@ -131,12 +134,18 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         id_map = {row['Nazwa_Dania']: row['ID_Dania'] for row in katalog_dane}
         znane_id = list(id_map.values()) 
         
+        status_zdjec = {row['Nazwa_Dania']: {"zdjecie_obecne": row.get('Zdjecie', '') != '', "wiersz": idx} 
+                        for idx, row in enumerate(katalog_dane, start=2)}
+        
         nowe_do_katalogu = []
         dodano_nowe = 0
+        zaktualizowano_zdjecia = 0
         dzisiaj_zapis = date.today().strftime("%Y-%m-%d")
         
         for danie in unikalny_katalog:
             nazwa = danie["Nazwa_Dania"]
+            pobrane_zdjecie = danie.get("Zdjecie", "")
+            
             if nazwa not in znane_nazwy:
                 while True:
                     nowe_id = f"D-{str(uuid.uuid4())[:6]}"
@@ -153,16 +162,30 @@ def aktualizuj_baze_danych(menu_tygodniowe):
                     danie["Opis"], 
                     formula, 
                     danie.get("Cena", ""), 
-                    danie.get("Zdjecie", ""),
+                    pobrane_zdjecie,
                     dzisiaj_zapis 
                 ])
                 znane_nazwy.append(nazwa)
                 id_map[nazwa] = nowe_id
                 dodano_nowe += 1
                 
+            else:
+                dane_z_bazy = status_zdjec.get(nazwa)
+                
+                if dane_z_bazy and not dane_z_bazy["zdjecie_obecne"] and pobrane_zdjecie:
+                    numer_wiersza = dane_z_bazy["wiersz"]
+                    komorka_do_zmiany = f'G{numer_wiersza}'
+                    
+                    print(f"   📸 Aktualizuję brakujące zdjęcie dla: {nazwa}")
+                    ws_katalog.update_acell(komorka_do_zmiany, pobrane_zdjecie)
+                    zaktualizowano_zdjecia += 1
+                
         if nowe_do_katalogu:
             ws_katalog.append_rows(nowe_do_katalogu, value_input_option='USER_ENTERED')
+            
         print(f"➕ Dodano {dodano_nowe} nowości do głównego katalogu.")
+        if zaktualizowano_zdjecia > 0:
+            print(f"🖼️ Zaktualizowano brakujące zdjęcia dla {zaktualizowano_zdjecia} produktów.")
 
         print("🧹 Czyszczenie starego menu dnia...")
         ws_menu.clear()
@@ -188,6 +211,7 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         
     except Exception as e:
         print(f"❌ BŁĄD POŁĄCZENIA Z GOOGLE SHEETS: {e}")
+
 
 if __name__ == "__main__":
     adres = "https://kanapkaman.pl/sandwiczSzop"
