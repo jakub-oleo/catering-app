@@ -229,3 +229,13 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         aktualizuj_baze_danych(menu_tygodnia)
     else:
         print("Nie pobrano żadnych danych ze strony.")
+
+if __name__ == "__main__":
+    adres = "https://kanapkaman.pl/sandwiczSzop"
+    menu_tygodnia = pobierz_pelne_menu(adres)
+    
+    czy_puste = all(len(dania) == 0 for dania in menu_tygodnia.values())
+    if not czy_puste:
+        aktualizuj_baze_danych(menu_tygodnia)
+    else:
+        print("Nie pobrano żadnych danych ze strony.")
