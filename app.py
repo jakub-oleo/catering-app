@@ -263,35 +263,27 @@ with tab_statystyki:
             
             top_5 = ranking_df.sort_values(by=['Wynik_Rankingowy', 'Liczba_Ocen'], ascending=[False, False]).head(5)
             
-            # 4. Wyświetlanie wyników
             for i, row in enumerate(top_5.iterrows(), 1):
                 dane = row[1]
                 st.markdown(f"**{i}. {dane['Nazwa_Dania']}**")
-                # Użytkownikom nadal pokazujemy ich "zwykłą" średnią
                 st.caption(f"{dane['Srednia']:.1f} ⭐ ({dane['Liczba_Ocen']} opinii) | {dane['Kategoria']}")
                 
-                # --- NOWOŚĆ: Rozwijana sekcja z opiniami ---
                 with st.expander("💬 Zobacz opinie"):
-                    # Filtrujemy bazę opinii, aby wyciągnąć tylko te dla obecnego dania
                     opinie_dla_dania = opinie_df[opinie_df['ID_Dania'] == dane['ID_Dania']]
                     
                     if opinie_dla_dania.empty:
                         st.info("Brak szczegółowych opinii do wyświetlenia.")
                     else:
-                        # Iterujemy przez każdą opinię i ją wyświetlamy
                         for _, opinia in opinie_dla_dania.iterrows():
-                            # Pobieramy dane (upewnij się, że nazwy kolumn 'Autor' i 'Komentarz' zgadzają się z Twoim Excelem)
                             autor = opinia.get('Autor', 'Anonim')
                             ocena = opinia.get('Srednia_Obliczona', 0)
                             komentarz = opinia.get('Komentarz', '')
                             
                             st.markdown(f"**{autor}** - {ocena} ⭐")
                             
-                            # Sprawdzamy, czy komentarz w ogóle istnieje i nie jest pusty
                             if str(komentarz).strip() and str(komentarz) != 'nan':
                                 st.write(f"_{komentarz}_")
-                            
-                            st.divider() # Subtelna linia oddzielająca opinie
+                            st.divider()
                 
     with col_stat2:
         st.subheader("🌟 Nowości w menu")
