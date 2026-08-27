@@ -66,7 +66,7 @@ def oblicz_srednia_wazona(row):
     except:
         return 0.0
 
-def wyswietl_dania(dania_df, wszystkie_opinie_df):
+def wyswietl_dania(dania_df, wszystkie_opinie_df, prefix=""):
     for index, row in dania_df.iterrows():
         id_dania = row['ID_Dania']
         opinie_dania = wszystkie_opinie_df[wszystkie_opinie_df['ID_Dania'] == id_dania]
@@ -97,27 +97,25 @@ def wyswietl_dania(dania_df, wszystkie_opinie_df):
             with col_ocena:
                 st.markdown(f"**{srednia_wyswietl}**")
                 
-                # --- NOWOŚĆ: Przycisk z popoverem w kolumnie z oceną ---
                 with st.popover("⭐ Dodaj opinię"):
                     st.markdown(f"Oceniasz: **{row['Nazwa_Dania']}**")
                     
-                    # Unikalny formularz dla każdego dania (używamy id_dania w 'key')
-                    with st.form(key=f"form_oceny_{id_dania}", clear_on_submit=True):
+                    with st.form(key=f"form_oceny_{prefix}_{id_dania}", clear_on_submit=True):
                         st.markdown("**Szczegółowa ocena:**")
-                        ocena_smak = st.slider("Smak (1-10)", 1, 10, 7, key=f"smak_{id_dania}")
+                        ocena_smak = st.slider("Smak (1-10)", 1, 10, 7, key=f"smak_{prefix}_{id_dania}")
                         
                         colA, colB, colC = st.columns(3)
                         with colA:
-                            ocena_swiezosc = st.slider("Śwież.", 1, 5, 4, key=f"swiez_{id_dania}")
+                            ocena_swiezosc = st.slider("Śwież.", 1, 5, 4, key=f"swiez_{prefix}_{id_dania}")
                         with colB:
-                            ocena_cena = st.slider("Cena", 1, 5, 4, key=f"cena_{id_dania}")
+                            ocena_cena = st.slider("Cena", 1, 5, 4, key=f"cena_{prefix}_{id_dania}")
                         with colC:
-                            ocena_wyglad = st.slider("Wygląd", 1, 5, 4, key=f"wyglad_{id_dania}")
+                            ocena_wyglad = st.slider("Wygląd", 1, 5, 4, key=f"wyglad_{prefix}_{id_dania}")
                             
-                        ocena_zgodnosc = st.radio("Zgodne z opisem?", ["Tak", "Nie"], horizontal=True, key=f"zgod_{id_dania}")
+                        ocena_zgodnosc = st.radio("Zgodne z opisem?", ["Tak", "Nie"], horizontal=True, key=f"zgod_{prefix}_{id_dania}")
                         
-                        komentarz = st.text_area("Komentarz", max_chars=200, key=f"kom_{id_dania}")
-                        autor = st.text_input("Twoje imię (opcjonalnie)", key=f"aut_{id_dania}")
+                        komentarz = st.text_area("Komentarz", max_chars=200, key=f"kom_{prefix}_{id_dania}")
+                        autor = st.text_input("Twoje imię (opcjonalnie)", key=f"aut_{prefix}_{id_dania}")
                         
                         if st.form_submit_button("Wyślij 🚀", use_container_width=True):
                             try:
@@ -133,7 +131,6 @@ def wyswietl_dania(dania_df, wszystkie_opinie_df):
                                 id_opinii = f"OP-{nowy_wiersz_numer}"
                                 dzisiaj_zapis = date.today().strftime("%Y-%m-%d")
                                 
-                                # Twoja formuła wyliczająca średnią
                                 formula_srednia = f'=ZAOKR((D{nowy_wiersz_numer}*0,4) + (E{nowy_wiersz_numer}*2*0,25) + (F{nowy_wiersz_numer}*2*0,15) + (G{nowy_wiersz_numer}*2*0,1) + (JEŻELI(H{nowy_wiersz_numer}="Tak"; 10; 2)*0,1); 1)'
                                 
                                 ws.append_row(
@@ -146,9 +143,7 @@ def wyswietl_dania(dania_df, wszystkie_opinie_df):
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Błąd zapisu do chmury: {e}")
-                # --------------------------------------------------------
 
-            # Wyświetlanie komentarzy pod daniem pozostaje bez zmian
             if not opinie_dania.empty:
                 with st.expander("💬 Komentarze"):
                     for _, op in opinie_dania.iterrows():
@@ -181,7 +176,7 @@ with tab_menu:
         dania_z_kategorii = dzisiejsze_menu[dzisiejsze_menu['Kategoria'] == wybrana_kategoria]
         
         if not dania_z_kategorii.empty:
-            wyswietl_dania(dania_z_kategorii, opinie_df)
+            wyswietl_dania(dania_z_kategorii, opinie_df, prefix="menu")
         else:
             st.info(f"Brak pozycji w kategorii **{wybrana_kategoria}** w tym dniu.")
     else:
@@ -204,7 +199,7 @@ with tab_katalog:
             
         wyniki = pelny_katalog[pelny_katalog['Nazwa_Dania'].str.contains(wyszukiwana_fraza, case=False, na=False)]
         if not wyniki.empty:
-            wyswietl_dania(wyniki, opinie_df)
+            wyswietl_dania(wyniki, opinie_df, prefix="szukaj")
         else:
             st.warning("Nie znaleziono dań pasujących do wpisanej frazy. Spróbuj wpisać inną nazwę.")
     else:
@@ -219,7 +214,7 @@ with tab_katalog:
                 dania_w_kategorii = pelny_katalog[pelny_katalog['Kategoria'] == kategoria]
                 
                 if not dania_w_kategorii.empty:
-                    wyswietl_dania(dania_w_kategorii, opinie_df)
+                    wyswietl_dania(dania_w_kategorii, opinie_df, prefix="katalog")
                 else:
                     st.info("Brak dań w tej kategorii.")
                     
