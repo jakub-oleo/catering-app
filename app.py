@@ -147,50 +147,6 @@ def wyswietl_dania(dania_df, wszystkie_opinie_df, prefix=""):
                 if st.button("⭐ Dodaj opinię", key=f"btn_ocena_{prefix}_{id_dania}"):
                     okno_oceny(id_dania, row['Nazwa_Dania'])
                     
-                    with st.form(key=f"form_oceny_{prefix}_{id_dania}", clear_on_submit=True):
-                        st.markdown("**Szczegółowa ocena:**")
-                        ocena_smak = st.slider("Smak (1-10)", 1, 10, 7, key=f"smak_{prefix}_{id_dania}")
-                        
-                        colA, colB, colC = st.columns(3)
-                        with colA:
-                            ocena_swiezosc = st.slider("Śwież.", 1, 5, 4, key=f"swiez_{prefix}_{id_dania}")
-                        with colB:
-                            ocena_cena = st.slider("Cena", 1, 5, 4, key=f"cena_{prefix}_{id_dania}")
-                        with colC:
-                            ocena_wyglad = st.slider("Wygląd", 1, 5, 4, key=f"wyglad_{prefix}_{id_dania}")
-                            
-                        ocena_zgodnosc = st.radio("Zgodne z opisem?", ["Tak", "Nie"], horizontal=True, key=f"zgod_{prefix}_{id_dania}")
-                        
-                        komentarz = st.text_area("Komentarz", max_chars=200, key=f"kom_{prefix}_{id_dania}")
-                        autor = st.text_input("Twoje imię (opcjonalnie)", key=f"aut_{prefix}_{id_dania}")
-                        
-                        if st.form_submit_button("Wyślij 🚀", use_container_width=True):
-                            try:
-                                if os.path.exists('google_credentials.json'):
-                                    gc = gspread.service_account(filename='google_credentials.json')
-                                else:
-                                    gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
-                                    
-                                sh = gc.open("Baza_Danych_Catering")
-                                ws = sh.worksheet("Opinie")
-                                
-                                nowy_wiersz_numer = len(ws.get_all_values()) + 1
-                                id_opinii = f"OP-{nowy_wiersz_numer}"
-                                dzisiaj_zapis = date.today().strftime("%Y-%m-%d")
-                                
-                                formula_srednia = f'=ZAOKR((D{nowy_wiersz_numer}*0,4) + (E{nowy_wiersz_numer}*2*0,25) + (F{nowy_wiersz_numer}*2*0,15) + (G{nowy_wiersz_numer}*2*0,1) + (JEŻELI(H{nowy_wiersz_numer}="Tak"; 10; 2)*0,1); 1)'
-                                
-                                ws.append_row(
-                                    [id_opinii, dzisiaj_zapis, id_dania, ocena_smak, ocena_swiezosc, ocena_cena, ocena_wyglad, ocena_zgodnosc, formula_srednia, komentarz, autor if autor else "Anonim"],
-                                    value_input_option='USER_ENTERED'
-                                )
-                                
-                                st.cache_data.clear()
-                                st.session_state['dodano_opinie'] = True
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Błąd zapisu do chmury: {e}")
-
             if not opinie_dania.empty:
                 with st.expander("💬 Komentarze"):
                     for _, op in opinie_dania.iterrows():
