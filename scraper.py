@@ -18,15 +18,12 @@ def pobierz_dania_z_dnia(page):
         let zebrane = [];
         let aktualnaKategoria = "Inne"; // Kategoria domyślna
         
-        // Wyciągamy nagłówki H2 (kategorie) oraz .v-card (dania) w kolejności, w jakiej są na stronie
         let elementy = document.querySelectorAll('h2.text-title-large, .v-card');
         
         for (let el of elementy) {
             if (el.tagName.toLowerCase() === 'h2') {
-                // Jeśli to nagłówek, zapamiętujemy jego tekst jako nową kategorię
                 aktualnaKategoria = el.innerText.trim();
             } else if (el.classList.contains('v-card')) {
-                // Jeśli to karta, szukamy w niej nazwy
                 let nameEl = el.querySelector('.guest-menu-product-card__name');
                 if (!nameEl) continue; // Pomijamy puste/inne karty systemu
                 
@@ -91,18 +88,14 @@ def aktualizuj_baze_danych(menu_tygodniowe):
     dzisiaj = date.today()
     dzisiaj_index = dzisiaj.weekday() 
     
-    if dzisiaj_index >= 4:
-        index_jutra = 0
-        jutro_data = dzisiaj + timedelta(days=(7 - dzisiaj_index))
-    else:
-        index_jutra = dzisiaj_index + 1
-        jutro_data = dzisiaj + timedelta(days=1)
+    if dzisiaj_index > 4:
+        dzisiaj_index = 0
         
     dni_nazwy = ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek"]
-    nazwa_dnia_jutro = dni_nazwy[index_jutra]
-    jutro_str = jutro_data.strftime("%Y-%m-%d")
+    nazwa_dnia_dzisiaj = dni_nazwy[dzisiaj_index]
+    dzisiaj_str = dzisiaj.strftime("%Y-%m-%d")
     
-    print(f"\n📝 Zapis do chmury... Menu jutra to: {nazwa_dnia_jutro} ({jutro_str})")
+    print(f"\n📝 Zapis do chmury... Menu dzisiejsze to: {nazwa_dnia_dzisiaj} ({dzisiaj_str})")
     
     wszystkie_dania = []
     for dania in menu_tygodniowe.values():
@@ -114,12 +107,12 @@ def aktualizuj_baze_danych(menu_tygodniowe):
             unikalny_katalog_dict[danie['Nazwa_Dania']] = danie
     unikalny_katalog = list(unikalny_katalog_dict.values())
     
-    menu_jutro_surowe = menu_tygodniowe[nazwa_dnia_jutro]
-    menu_jutro_dict = {}
-    for danie in menu_jutro_surowe:
-        if danie['Nazwa_Dania'] not in menu_jutro_dict:
-            menu_jutro_dict[danie['Nazwa_Dania']] = danie
-    menu_jutro = list(menu_jutro_dict.values())
+    menu_dzisiaj_surowe = menu_tygodniowe[nazwa_dnia_dzisiaj]
+    menu_dzisiaj_dict = {}
+    for danie in menu_dzisiaj_surowe:
+        if danie['Nazwa_Dania'] not in menu_dzisiaj_dict:
+            menu_dzisiaj_dict[danie['Nazwa_Dania']] = danie
+    menu_dzisiaj = list(menu_dzisiaj_dict.values())
     
     try:
         print("🔗 Łączenie z Google Sheets...")
@@ -140,7 +133,7 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         nowe_do_katalogu = []
         dodano_nowe = 0
         zaktualizowano_zdjecia = 0
-        dzisiaj_zapis = date.today().strftime("%Y-%m-%d")
+        dzisiaj_zapis = dzisiaj_str
         
         for danie in unikalny_katalog:
             nazwa = danie["Nazwa_Dania"]
@@ -195,19 +188,19 @@ def aktualizuj_baze_danych(menu_tygodniowe):
         zapisane_menu = 0
         aktualny_wiersz_menu = 1 
         
-        for danie in menu_jutro:
+        for danie in menu_dzisiaj:
             nazwa = danie["Nazwa_Dania"]
             id_dania = id_map.get(nazwa)
             
             if id_dania:
                 aktualny_wiersz_menu += 1
                 formula_vlookup = f'=WYSZUKAJ.PIONOWO(B{aktualny_wiersz_menu}; Katalog_Dan!A:E; 2; FAŁSZ)'
-                nowe_do_menu.append([jutro_str, id_dania, formula_vlookup])
+                nowe_do_menu.append([dzisiaj_str, id_dania, formula_vlookup])
                 zapisane_menu += 1
                 
         if nowe_do_menu:
             ws_menu.append_rows(nowe_do_menu, value_input_option='USER_ENTERED')
-        print(f"✅ Zapisano {zapisane_menu} unikalnych pozycji do NOWEGO Menu Dnia na {jutro_str}.")
+        print(f"✅ Zapisano {zapisane_menu} unikalnych pozycji do NOWEGO Menu Dnia na {dzisiaj_str}.")
         
     except Exception as e:
         print(f"❌ BŁĄD POŁĄCZENIA Z GOOGLE SHEETS: {e}")
