@@ -3,7 +3,7 @@ name: Poranny Budzik Aplikacji
 on:
   schedule:
     # cron: 'MINUTY GODZINY * * DNI_TYGODNIA' 
-    - cron: '0 4 * * 1-5'
+    - cron: '30 3 * * 1-5'
   workflow_dispatch: # Pozwala odpalić ręcznie z panelu
 
 jobs:
