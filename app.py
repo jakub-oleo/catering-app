@@ -297,7 +297,9 @@ with tab_statystyki:
         ).reset_index()
         
         C = statystyki['Srednia'].mean()
-        m = 2.0 
+        
+        #threshold dla ilosci opinii
+        m = 3.0 
         
         def oblicz_ranking(row):
             v = row['Liczba_Ocen']
