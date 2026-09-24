@@ -361,7 +361,7 @@ with tab_nowosci:
                 dane = row[1]
                 with st.container(border=True):
                     st.markdown(f"### 🆕 {dane['Nazwa_Dania']}")
-                    st.caption(f"Kategoria: **{dane['Kategoria']}** | ID: {dane['ID_Dania']}")
+                    st.caption(f"Kategoria: **{dane['Kategoria']}**")
                     if str(dane.get('Opis', '')).strip() != "Brak opisu":
                         st.write(f"*{dane['Opis']}*")
         else:
