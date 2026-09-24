@@ -167,7 +167,7 @@ st.title("🍽️ Panel Ocen")
 st.markdown(f"**Menu na:** {aktualna_data}")
 st.divider()
 
-tab_menu, tab_katalog, tab_ocena, tab_statystyki = st.tabs(["📋 Menu Dnia", "📚 Pełny Katalog", "✍️ Dodaj Opinię", "📈 Statystyki"])
+tab_menu, tab_katalog, tab_ocena, tab_statystyki, tab_nowosci = st.tabs(["📋 Menu Dnia", "📚 Pełny Katalog", "✍️ Dodaj Opinię", "📈 Statystyki", "🌟 Nowości"])
 
 with tab_menu:
     st.header("Co dzisiaj jemy?")
@@ -285,72 +285,86 @@ with tab_ocena:
                     st.error(f"❌ Błąd zapisu do chmury: {e}")
 
 with tab_statystyki:
-    st.header("📈 Statystyki i Nowości")
-    col_stat1, col_stat2 = st.columns(2)
+    st.header("🏆 Top 5 Najlepszych Dań")
+    st.markdown("Wybierz kategorię, aby zobaczyć najwyżej oceniane pozycje.")
     
-    with col_stat1:
-        st.subheader("🏆 Top 5 Najlepszych")
-        if opinie_df.empty:
-            st.info("Brak ocen w systemie.")
-        else:
-            statystyki = opinie_df.groupby('ID_Dania').agg(
-                Srednia=('Srednia_Obliczona', 'mean'), 
-                Liczba_Ocen=('ID_Opinii', 'count')
-            ).reset_index()
-            
-            C = statystyki['Srednia'].mean()
-            
-            m = 2.0 
-            
-            def oblicz_ranking(row):
-                v = row['Liczba_Ocen']
-                R = row['Srednia']
-                return (v / (v + m) * R) + (m / (v + m) * C)
-            
-            statystyki['Wynik_Rankingowy'] = statystyki.apply(oblicz_ranking, axis=1)
-            
-            ranking_df = pd.merge(statystyki, pelny_katalog, on="ID_Dania")
-            
-            top_5 = ranking_df.sort_values(by=['Wynik_Rankingowy', 'Liczba_Ocen'], ascending=[False, False]).head(5)
-            
-            for i, row in enumerate(top_5.iterrows(), 1):
-                dane = row[1]
-                st.markdown(f"**{i}. {dane['Nazwa_Dania']}**")
-                st.caption(f"{dane['Srednia']:.1f} ⭐ ({dane['Liczba_Ocen']} opinii) | {dane['Kategoria']}")
-                
-                with st.expander("💬 Zobacz opinie"):
-                    opinie_dla_dania = opinie_df[opinie_df['ID_Dania'] == dane['ID_Dania']]
-                    
-                    if opinie_dla_dania.empty:
-                        st.info("Brak szczegółowych opinii do wyświetlenia.")
-                    else:
-                        for _, opinia in opinie_dla_dania.iterrows():
-                            autor = opinia.get('Autor', 'Anonim')
-                            ocena = opinia.get('Srednia_Obliczona', 0)
-                            komentarz = opinia.get('Komentarz', '')
-                            
-                            st.markdown(f"**{autor}** - {ocena} ⭐")
-                            
-                            if str(komentarz).strip() and str(komentarz) != 'nan':
-                                st.write(f"_{komentarz}_")
-                            st.divider()
-                
-    with col_stat2:
-        st.subheader("🌟 Nowości w menu")
+    if opinie_df.empty:
+        st.info("Brak ocen w systemie.")
+    else:
+        statystyki = opinie_df.groupby('ID_Dania').agg(
+            Srednia=('Srednia_Obliczona', 'mean'), 
+            Liczba_Ocen=('ID_Opinii', 'count')
+        ).reset_index()
         
-        if 'Data_Dodania' in pelny_katalog.columns:
-            katalog_z_data = pelny_katalog[pelny_katalog['Data_Dodania'].astype(str).str.strip() != ""]
+        C = statystyki['Srednia'].mean()
+        m = 2.0 
+        
+        def oblicz_ranking(row):
+            v = row['Liczba_Ocen']
+            R = row['Srednia']
+            return (v / (v + m) * R) + (m / (v + m) * C)
+        
+        statystyki['Wynik_Rankingowy'] = statystyki.apply(oblicz_ranking, axis=1)
+        ranking_df = pd.merge(statystyki, pelny_katalog, on="ID_Dania")
+        
+        kategorie_z_ocenami = sorted([k for k in ranking_df['Kategoria'].unique().tolist() if str(k).strip() != ""])
+        
+        if kategorie_z_ocenami:
+            zakladki_kategorii = st.tabs(kategorie_z_ocenami)
             
-            if not katalog_z_data.empty:
-                najnowsza_data = katalog_z_data['Data_Dodania'].max()
-                nowosci = katalog_z_data[katalog_z_data['Data_Dodania'] == najnowsza_data]
-                
-                st.caption(f"Ostatnia aktualizacja bazy: {najnowsza_data}")
-                for i, row in enumerate(nowosci.iterrows(), 1):
-                    dane = row[1]
-                    st.markdown(f"**- {dane['Nazwa_Dania']}**")
-                    st.caption(f"Kategoria: {dane['Kategoria']}")
-            else:
-                st.info("Brak nowych dań do wyświetlenia. Czekamy na piątkową aktualizację!")
+            for zakladka, kategoria in zip(zakladki_kategorii, kategorie_z_ocenami):
+                with zakladka:
+                    df_dla_kategorii = ranking_df[ranking_df['Kategoria'] == kategoria]
+                    top_5 = df_dla_kategorii.sort_values(by=['Wynik_Rankingowy', 'Liczba_Ocen'], ascending=[False, False]).head(5)
+                    
+                    if top_5.empty:
+                        st.info("Brak wystarczających danych do rankingu w tej kategorii.")
+                    else:
+                        for i, row in enumerate(top_5.iterrows(), 1):
+                            dane = row[1]
+                            with st.container(border=True):
+                                st.markdown(f"#### #{i} {dane['Nazwa_Dania']}")
+                                st.caption(f"Średnia ocena: **{dane['Srednia']:.1f} ⭐** (Liczba opinii: {dane['Liczba_Ocen']})")
+                                
+                                with st.expander("💬 Zobacz opinie"):
+                                    opinie_dla_dania = opinie_df[opinie_df['ID_Dania'] == dane['ID_Dania']]
+                                    
+                                    if opinie_dla_dania.empty:
+                                        st.info("Brak szczegółowych opinii do wyświetlenia.")
+                                    else:
+                                        for _, opinia in opinie_dla_dania.iterrows():
+                                            autor = opinia.get('Autor', 'Anonim')
+                                            ocena = opinia.get('Srednia_Obliczona', 0)
+                                            komentarz = opinia.get('Komentarz', '')
+                                            
+                                            st.markdown(f"**{autor}** - {ocena} ⭐")
+                                            if str(komentarz).strip() and str(komentarz) != 'nan':
+                                                st.write(f"_{komentarz}_")
+                                            st.divider()
         else:
-            st.info("Brak kolumny z datą w bazie danych.")
+            st.info("Brak kategorii przypisanych do ocenionych dań.")
+
+with tab_nowosci:
+    st.header("🌟 Nowości w menu")
+    st.markdown("Sprawdź, co ostatnio dodaliśmy do naszej oferty!")
+    
+    if 'Data_Dodania' in pelny_katalog.columns:
+        katalog_z_data = pelny_katalog[pelny_katalog['Data_Dodania'].astype(str).str.strip() != ""]
+        
+        if not katalog_z_data.empty:
+            najnowsza_data = katalog_z_data['Data_Dodania'].max()
+            nowosci = katalog_z_data[katalog_z_data['Data_Dodania'] == najnowsza_data]
+            
+            st.success(f"Ostatnia aktualizacja bazy: **{najnowsza_data}**")
+            
+            for i, row in enumerate(nowosci.iterrows(), 1):
+                dane = row[1]
+                with st.container(border=True):
+                    st.markdown(f"### 🆕 {dane['Nazwa_Dania']}")
+                    st.caption(f"Kategoria: **{dane['Kategoria']}** | ID: {dane['ID_Dania']}")
+                    if str(dane.get('Opis', '')).strip() != "Brak opisu":
+                        st.write(f"*{dane['Opis']}*")
+        else:
+            st.info("Brak nowych dań do wyświetlenia. Czekamy na kolejną aktualizację bazy!")
+    else:
+        st.info("Brak kolumny z datą w bazie danych. (Skrypt wymaga dodania kolumny 'Data_Dodania' do głównego katalogu).")
